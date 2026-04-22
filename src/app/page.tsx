@@ -1039,6 +1039,183 @@ export default function Home() {
               </CardContent>
             </Card>
 
+            {/* Assessor Observations & Notes - Before Analysis */}
+            <Card className="bg-gradient-to-r from-rose-50 to-pink-50 border-rose-200">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <PenLine className="w-5 h-5 text-rose-600" />
+                      Assessor Observations & Notes
+                      <span className="text-sm font-normal text-gray-500 ml-2">
+                        ({observations.length} recorded)
+                      </span>
+                    </CardTitle>
+                    <CardDescription>Record your initial observations before AI analysis. These will be included in the AI processing.</CardDescription>
+                  </div>
+                  {!isAddingObservation && (
+                    <Button 
+                      onClick={() => setIsAddingObservation(true)}
+                      className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Observation
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Add Observation Form */}
+                {isAddingObservation && (
+                  <Card className="border-rose-300 shadow-lg">
+                    <CardHeader className="bg-gradient-to-r from-rose-100 to-pink-100 border-b py-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Plus className="w-4 h-4 text-rose-600" />
+                        New Observation
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4 space-y-3">
+                      {/* Category and Severity Row */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-700 mb-1 block">Category</label>
+                          <select 
+                            className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                            value={newObservation.category}
+                            onChange={(e) => setNewObservation(prev => ({ ...prev, category: e.target.value as ObservationCategory }))}
+                          >
+                            {OBSERVATION_CATEGORIES.map(cat => (
+                              <option key={cat.value} value={cat.value}>{cat.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-700 mb-1 block">Severity</label>
+                          <select 
+                            className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                            value={newObservation.severity}
+                            onChange={(e) => setNewObservation(prev => ({ ...prev, severity: e.target.value as ObservationSeverity }))}
+                          >
+                            <option value="INFO">Info</option>
+                            <option value="WARNING">Warning</option>
+                            <option value="CRITICAL">Critical</option>
+                            <option value="POSITIVE">Positive</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Title */}
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 mb-1 block">Title</label>
+                        <input
+                          type="text"
+                          placeholder="Brief title for this observation..."
+                          className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                          value={newObservation.title || ''}
+                          onChange={(e) => setNewObservation(prev => ({ ...prev, title: e.target.value }))}
+                        />
+                      </div>
+
+                      {/* Observation */}
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 mb-1 block">Observation Details</label>
+                        <textarea
+                          placeholder="Describe your observation in detail..."
+                          className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 min-h-[80px]"
+                          value={newObservation.observation || ''}
+                          onChange={(e) => setNewObservation(prev => ({ ...prev, observation: e.target.value }))}
+                        />
+                      </div>
+
+                      {/* Assessor Name */}
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 mb-1 block">Assessor Name</label>
+                        <input
+                          type="text"
+                          placeholder="Your name"
+                          className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                          value={newObservation.assessorName || ''}
+                          onChange={(e) => setNewObservation(prev => ({ ...prev, assessorName: e.target.value }))}
+                        />
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button variant="outline" size="sm" onClick={() => setIsAddingObservation(false)}>
+                          Cancel
+                        </Button>
+                        <Button 
+                          size="sm"
+                          onClick={addObservation}
+                          className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 gap-1"
+                          disabled={!newObservation.title || !newObservation.observation}
+                        >
+                          <Save className="w-3 h-3" />
+                          Save
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Observations List */}
+                {observations.length > 0 ? (
+                  <div className="space-y-2">
+                    {observations.map((obs) => {
+                      const CategoryIcon = getCategoryIcon(obs.category)
+                      const SeverityIcon = SEVERITY_ICONS[obs.severity]
+                      
+                      return (
+                        <div 
+                          key={obs.id} 
+                          className="flex items-start gap-3 p-3 bg-white rounded-lg border border-rose-100 hover:border-rose-200 transition-colors"
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${SEVERITY_COLORS[obs.severity]}`}>
+                            <SeverityIcon className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <Badge variant="outline" className="gap-1 text-xs">
+                                <CategoryIcon className="w-3 h-3" />
+                                {getCategoryLabel(obs.category)}
+                              </Badge>
+                              <Badge className={`${SEVERITY_COLORS[obs.severity]} text-xs`}>
+                                {obs.severity}
+                              </Badge>
+                            </div>
+                            <p className="font-medium text-gray-900 text-sm">{obs.title}</p>
+                            <p className="text-gray-600 text-xs mt-0.5">{obs.observation}</p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                              <span className="flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                {obs.assessorName}
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0"
+                            onClick={() => deleteObservation(obs.id)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  !isAddingObservation && (
+                    <div className="text-center py-6 text-gray-500">
+                      <StickyNote className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">No observations recorded yet</p>
+                      <p className="text-xs text-gray-400 mt-1">Add your initial observations before starting AI analysis</p>
+                    </div>
+                  )
+                )}
+              </CardContent>
+            </Card>
+
             {/* Upload Summary & Process Button */}
             <Card className={`transition-all duration-300 ${
               claim.documents.filter(d => ['license_disc', 'claim_form', 'policy_schedule'].includes(d.type)).length >= 3 
@@ -1503,272 +1680,72 @@ export default function Home() {
                 </Card>
               </TabsContent>
 
-              {/* Assessor Notes & Observations */}
+              {/* Assessor Notes - Post Analysis Review */}
               <TabsContent value="assessor" className="space-y-4">
-                {/* Summary Card */}
-                <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <PenLine className="w-5 h-5 text-amber-600" />
-                        Assessor Observations & Notes
-                      </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-white">
-                          {observations.length} observation{observations.length !== 1 ? 's' : ''}
-                        </Badge>
-                        <Badge variant="outline" className="bg-white">
-                          {observations.filter(o => o.requiresFollowUp && !o.followUpResolved).length} pending follow-up
-                        </Badge>
-                      </div>
-                    </div>
-                    <CardDescription>Record your observations, findings, and follow-up actions</CardDescription>
-                  </CardHeader>
-                </Card>
-
-                {/* Add Observation Button/Form */}
-                {!isAddingObservation ? (
-                  <Card className="border-dashed border-2 border-amber-300 bg-amber-50/30 hover:bg-amber-50/50 transition-colors cursor-pointer" onClick={() => setIsAddingObservation(true)}>
-                    <CardContent className="py-8 text-center">
-                      <MessageSquarePlus className="w-10 h-10 mx-auto text-amber-500 mb-3" />
-                      <p className="font-medium text-amber-700">Add New Observation</p>
-                      <p className="text-sm text-amber-600/70">Click to record a note, finding, or follow-up action</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card className="border-amber-300 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 border-b">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Plus className="w-5 h-5 text-amber-600" />
-                        New Observation
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6 space-y-4">
-                      {/* Category and Severity Row */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium text-gray-700 mb-2 block">Category</label>
-                          <select 
-                            className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                            value={newObservation.category}
-                            onChange={(e) => setNewObservation(prev => ({ ...prev, category: e.target.value as ObservationCategory }))}
-                          >
-                            {OBSERVATION_CATEGORIES.map(cat => (
-                              <option key={cat.value} value={cat.value}>{cat.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-gray-700 mb-2 block">Severity</label>
-                          <select 
-                            className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                            value={newObservation.severity}
-                            onChange={(e) => setNewObservation(prev => ({ ...prev, severity: e.target.value as ObservationSeverity }))}
-                          >
-                            <option value="INFO">Info - General observation</option>
-                            <option value="WARNING">Warning - Needs attention</option>
-                            <option value="CRITICAL">Critical - Requires immediate action</option>
-                            <option value="POSITIVE">Positive - Good finding</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Title */}
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 mb-2 block">Title</label>
-                        <input
-                          type="text"
-                          placeholder="Brief title for this observation..."
-                          className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                          value={newObservation.title || ''}
-                          onChange={(e) => setNewObservation(prev => ({ ...prev, title: e.target.value }))}
-                        />
-                      </div>
-
-                      {/* Observation */}
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 mb-2 block">Observation Details</label>
-                        <textarea
-                          placeholder="Describe your observation in detail..."
-                          className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 min-h-[100px]"
-                          value={newObservation.observation || ''}
-                          onChange={(e) => setNewObservation(prev => ({ ...prev, observation: e.target.value }))}
-                        />
-                      </div>
-
-                      {/* Related Section & Assessor */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium text-gray-700 mb-2 block">Related Section</label>
-                          <select 
-                            className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                            value={newObservation.relatedSection || ''}
-                            onChange={(e) => setNewObservation(prev => ({ ...prev, relatedSection: e.target.value }))}
-                          >
-                            <option value="">Select section...</option>
-                            <option value="vehicle">Vehicle Identification</option>
-                            <option value="policy">Policy & Coverage</option>
-                            <option value="incident">Incident Details</option>
-                            <option value="damage">Damage Assessment</option>
-                            <option value="writeoff">Write-Off Estimation</option>
-                            <option value="consistency">Consistency Check</option>
-                            <option value="general">General</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-gray-700 mb-2 block">Assessor Name</label>
-                          <input
-                            type="text"
-                            placeholder="Your name"
-                            className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                            value={newObservation.assessorName || ''}
-                            onChange={(e) => setNewObservation(prev => ({ ...prev, assessorName: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Follow-up */}
-                      <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                        <div className="flex items-center gap-2 mb-3">
-                          <input
-                            type="checkbox"
-                            id="requiresFollowUp"
-                            className="rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                            checked={newObservation.requiresFollowUp || false}
-                            onChange={(e) => setNewObservation(prev => ({ ...prev, requiresFollowUp: e.target.checked }))}
-                          />
-                          <label htmlFor="requiresFollowUp" className="text-sm font-medium text-amber-800">
-                            Requires Follow-up Action
-                          </label>
-                        </div>
-                        {newObservation.requiresFollowUp && (
-                          <input
-                            type="text"
-                            placeholder="Describe the follow-up action needed..."
-                            className="w-full rounded-lg border border-amber-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
-                            value={newObservation.followUpAction || ''}
-                            onChange={(e) => setNewObservation(prev => ({ ...prev, followUpAction: e.target.value }))}
-                          />
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex justify-end gap-3 pt-2">
-                        <Button variant="outline" onClick={() => setIsAddingObservation(false)}>
-                          Cancel
-                        </Button>
-                        <Button 
-                          onClick={addObservation}
-                          className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 gap-2"
-                          disabled={!newObservation.title || !newObservation.observation}
-                        >
-                          <Save className="w-4 h-4" />
-                          Save Observation
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Observations List */}
+                {/* Pre-Analysis Observations (Read-only) */}
                 {observations.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      <MessageCircle className="w-4 h-4" />
-                      Recorded Observations
-                    </h3>
-                    {observations.map((obs) => {
-                      const CategoryIcon = getCategoryIcon(obs.category)
-                      const SeverityIcon = SEVERITY_ICONS[obs.severity]
-                      
-                      return (
-                        <Card key={obs.id} className={`${obs.followUpResolved ? 'opacity-60' : ''} hover:shadow-md transition-shadow`}>
-                          <CardContent className="pt-4">
-                            <div className="flex items-start gap-4">
-                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${SEVERITY_COLORS[obs.severity]}`}>
-                                <SeverityIcon className="w-5 h-5" />
+                  <Card className="bg-gradient-to-r from-rose-50 to-pink-50 border-rose-200">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <PenLine className="w-5 h-5 text-rose-600" />
+                        Pre-Analysis Observations
+                        <Badge variant="outline" className="bg-white ml-2">
+                          {observations.length} submitted
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription>These observations were entered before AI analysis and were included in the processing</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {observations.map((obs) => {
+                          const CategoryIcon = getCategoryIcon(obs.category)
+                          const SeverityIcon = SEVERITY_ICONS[obs.severity]
+                          
+                          return (
+                            <div 
+                              key={obs.id} 
+                              className="flex items-start gap-3 p-3 bg-white rounded-lg border border-rose-100"
+                            >
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${SEVERITY_COLORS[obs.severity]}`}>
+                                <SeverityIcon className="w-4 h-4" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap mb-2">
-                                  <Badge variant="outline" className="gap-1">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <Badge variant="outline" className="gap-1 text-xs">
                                     <CategoryIcon className="w-3 h-3" />
                                     {getCategoryLabel(obs.category)}
                                   </Badge>
-                                  <Badge className={SEVERITY_COLORS[obs.severity]}>
+                                  <Badge className={`${SEVERITY_COLORS[obs.severity]} text-xs`}>
                                     {obs.severity}
                                   </Badge>
-                                  {obs.requiresFollowUp && (
-                                    <Badge className={obs.followUpResolved ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700 animate-pulse'}>
-                                      <Flag className="w-3 h-3 mr-1" />
-                                      {obs.followUpResolved ? 'Resolved' : 'Follow-up Required'}
-                                    </Badge>
-                                  )}
                                 </div>
-                                <h4 className="font-semibold text-gray-900 mb-1">{obs.title}</h4>
-                                <p className="text-gray-600 text-sm mb-2">{obs.observation}</p>
-                                {obs.requiresFollowUp && obs.followUpAction && (
-                                  <div className="p-2 bg-amber-50 rounded-lg text-sm text-amber-800 mb-2">
-                                    <strong>Follow-up:</strong> {obs.followUpAction}
-                                  </div>
-                                )}
-                                <div className="flex items-center justify-between text-xs text-gray-400">
-                                  <div className="flex items-center gap-3">
-                                    <span className="flex items-center gap-1">
-                                      <User className="w-3 h-3" />
-                                      {obs.assessorName}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <Clock className="w-3 h-3" />
-                                      {obs.createdAt}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {obs.requiresFollowUp && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => toggleFollowUpResolved(obs.id)}
-                                        className="h-7 text-xs"
-                                      >
-                                        <CheckSquare className="w-3 h-3 mr-1" />
-                                        {obs.followUpResolved ? 'Unresolve' : 'Resolve'}
-                                      </Button>
-                                    )}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => deleteObservation(obs.id)}
-                                      className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
-                                    >
-                                      <Trash2 className="w-3 h-3 mr-1" />
-                                      Delete
-                                    </Button>
-                                  </div>
-                                </div>
+                                <p className="font-medium text-gray-900 text-sm">{obs.title}</p>
+                                <p className="text-gray-600 text-xs mt-0.5">{obs.observation}</p>
+                                <p className="text-xs text-gray-400 mt-1">By: {obs.assessorName}</p>
                               </div>
                             </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
+                          )
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
 
-                {/* Assessor Summary Section */}
-                <Card className="mt-6">
+                {/* Assessor Summary & Decision */}
+                <Card>
                   <CardHeader className="bg-gradient-to-r from-slate-100 to-gray-100">
                     <CardTitle className="flex items-center gap-2">
                       <FileText className="w-5 h-5 text-gray-600" />
-                      Assessor Summary & Decision
+                      Assessor Review & Decision
                     </CardTitle>
-                    <CardDescription>Provide your overall assessment and final decision</CardDescription>
+                    <CardDescription>Provide your final review and decision based on AI analysis</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-6 space-y-4">
                     <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Overall Notes</label>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Review Notes</label>
                       <textarea
-                        placeholder="Summarize your overall findings and observations..."
-                        className="w-full rounded-lg border border-gray-300 p-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 min-h-[120px]"
+                        placeholder="Add your review notes based on the AI analysis results..."
+                        className="w-full rounded-lg border border-gray-300 p-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 min-h-[100px]"
                         value={assessorSummary.overallNotes}
                         onChange={(e) => setAssessorSummary(prev => ({ ...prev, overallNotes: e.target.value }))}
                       />

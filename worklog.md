@@ -139,3 +139,36 @@ Stage Summary:
 - Visual progress tracking shows readiness for analysis
 - Cannot start analysis until all required documents are uploaded
 - Cleaner UX that prevents document type confusion
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Move Assessor Notes to Pre-Analysis Phase
+
+Work Log:
+- Moved Assessor Observations section from results tab to upload phase (before AI analysis)
+- Added new "Assessor Observations & Notes" card in upload section with rose/pink styling
+- Created simplified pre-analysis observation form with:
+  - Category dropdown (10 categories)
+  - Severity dropdown (4 levels)
+  - Title and observation details fields
+  - Assessor name field
+- Added observation list display showing all recorded observations
+- Added delete functionality for pre-analysis observations
+- Updated results section's "Notes" tab to:
+  - Show "Pre-Analysis Observations" as read-only (rose/pink styling)
+  - Label indicating these were submitted before AI analysis
+  - Assessor Review & Decision section for post-analysis input
+- Updated flow to ensure all info is gathered BEFORE analysis starts:
+  1. Upload Required Documents (License Disc, Claim Form, Policy Schedule)
+  2. Upload Supporting Documents (Damage Photos)
+  3. Record Assessor Observations & Notes
+  4. Start AI Analysis
+  5. Review Results & Make Final Decision
+
+Stage Summary:
+- Assessor notes are now captured BEFORE AI analysis, ensuring human observations inform the AI processing
+- Clear separation between pre-analysis observations (input) and post-analysis review (output)
+- Improved workflow that gathers all information upfront
+- Pre-analysis observations displayed in results with clear "Pre-Analysis" labeling
+- The AI will consider assessor observations as part of the input data (pending backend integration)
