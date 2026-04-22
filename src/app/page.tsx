@@ -316,21 +316,19 @@ export default function Home() {
     try {
       // Prepare FormData for real API call
       const formData = new FormData()
-      const files: File[] = []
-      const documentTypes: string[] = []
       
+      // Add files and document types to FormData
+      let fileCount = 0
       claim.documents.forEach(doc => {
         if (doc.file) {
-          files.push(doc.file)
-          documentTypes.push(doc.type)
+          console.log(`[Frontend] Adding file: ${doc.name}, type: ${doc.type}, size: ${doc.file.size}`)
+          formData.append('files', doc.file)
+          formData.append('documentTypes', doc.type)
+          fileCount++
         }
       })
       
-      // Add files and document types to FormData
-      files.forEach((file, index) => {
-        formData.append('files', file)
-        formData.append('documentTypes', documentTypes[index])
-      })
+      console.log(`[Frontend] Total files to upload: ${fileCount}`)
       
       // Add assessor observations
       formData.append('assessorObservations', JSON.stringify(observations))
@@ -347,21 +345,33 @@ export default function Home() {
             status: newStep < 3 ? 'processing' : newStep < 6 ? 'analyzing' : 'validating'
           }
         })
-      }, 800)
+      }, 1500) // Slower progress since VLM takes time
 
-      // Call the real API
+      console.log('[Frontend] Calling API...')
+      
+      // Call the real API with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 250000) // 4 min timeout
+      
       const response = await fetch('/api/claims/process', {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: controller.signal
       })
 
+      clearTimeout(timeoutId)
       clearInterval(progressInterval)
+      
+      console.log('[Frontend] API response status:', response.status)
 
       if (!response.ok) {
-        throw new Error('API request failed')
+        const errorText = await response.text()
+        console.error('[Frontend] API error response:', errorText)
+        throw new Error(`API returned ${response.status}: ${errorText}`)
       }
 
       const apiResult = await response.json()
+      console.log('[Frontend] API result:', apiResult)
       
       // Transform API results to match our ClaimResults interface
       const processedResults = transformApiResults(apiResult)
@@ -374,74 +384,89 @@ export default function Home() {
         results: processedResults
       }))
     } catch (error) {
-      console.error('Processing error:', error)
-      // Show error instead of falling back to mock data
+      console.error('[Frontend] Processing error:', error)
+      
+      let errorMessage = 'Unknown error'
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = 'Request timed out. The analysis is taking too long. Please try with smaller images.'
+        } else if (error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
       setClaim(prev => ({
         ...prev,
         status: 'error',
-        error: `Processing failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please check console for details.`
+        error: errorMessage
       }))
     }
   }
 
   // Transform API results to match frontend ClaimResults interface
   const transformApiResults = (apiResult: any): ClaimResults => {
+    console.log('[Transform] Input:', apiResult)
+    
     const results = apiResult.results || {}
     const vehicle = results.vehicleIdentification || {}
     const policyMatch = results.policyMatch || {}
+    const policyData = results.policyData || {}
+    const claimForm = results.claimForm || {}
     const damage = results.damageAssessment || {}
     const writeOff = results.writeOffEstimation || {}
     const consistency = results.consistencyCheck || {}
     
-    return {
+    const transformed = {
       claimNumber: apiResult.claimNumber || `CLM-${Date.now()}`,
       processedAt: new Date().toLocaleString(),
       vehicleId: {
-        vin: vehicle.vin || 'N/A',
-        registrationNumber: vehicle.registrationNumber || 'N/A',
-        make: vehicle.make || 'Unknown',
-        model: vehicle.model || 'Unknown',
-        year: vehicle.year || null,
+        vin: vehicle.vin || 'Not extracted',
+        registrationNumber: vehicle.registrationNumber || 'Not extracted',
+        make: vehicle.make || damage.observedVehicleInfo?.make || 'Unknown',
+        model: vehicle.model || damage.observedVehicleInfo?.model || 'Unknown',
+        year: vehicle.year || damage.observedVehicleInfo?.approximateYear || null,
         matchStatus: policyMatch.vehicleMatch?.matchStatus || 'PENDING',
-        matchDetails: policyMatch.vehicleMatch?.details || 'Processing completed'
+        matchDetails: policyMatch.vehicleMatch?.matchDetails || policyMatch.summary || 'Vehicle identification pending'
       },
       policyAnalysis: {
-        policyNumber: policyMatch.policyDetails?.policyNumber || 'N/A',
-        insurerName: policyMatch.policyDetails?.insurerName || 'Unknown',
-        sumInsured: policyMatch.policyDetails?.sumInsured || 0,
-        excess: policyMatch.policyDetails?.excess || 0,
+        policyNumber: policyData.policyNumber || policyMatch.insuranceAnalysis?.policyNumber || 'Not extracted',
+        insurerName: policyData.insurerName || 'Not extracted',
+        sumInsured: policyData.sumInsured || policyMatch.insuranceAnalysis?.sumInsured || 0,
+        excess: policyData.excess || 0,
         coverageValid: consistency.policyValid ?? true,
-        extrasInsured: policyMatch.policyDetails?.extras || [],
-        missingItems: policyMatch.discrepancies || []
+        extrasInsured: policyData.extras?.map((e: any) => e.name) || policyMatch.extrasAnalysis?.insuredExtras || [],
+        missingItems: policyMatch.extrasAnalysis?.notInsuredButObserved || []
       },
       incidentSummary: {
-        date: results.claimForm?.incidentDate || 'N/A',
-        location: results.claimForm?.location || 'N/A',
-        description: results.claimForm?.description || 'No description available',
-        driverName: results.claimForm?.driverName || 'N/A'
+        date: claimForm.incidentDate || 'Not provided',
+        location: claimForm.location || 'Not provided',
+        description: claimForm.description || damage.description || 'No description available',
+        driverName: claimForm.driverName || 'Not provided'
       },
       damageAssessment: {
-        severity: damage.overallSeverity || 'MODERATE',
+        severity: damage.overallSeverity || damage.severityAssessment || 'MODERATE',
         severityScore: damage.severityScore || 50,
-        damagedAreas: damage.damagedAreas?.map((a: any) => a.area || a) || [],
-        estimatedRepairCost: damage.totalEstimatedRepair || 0
+        damagedAreas: damage.damagedAreas?.map((a: any) => typeof a === 'string' ? a : a.area || a.name) || [],
+        estimatedRepairCost: damage.totalEstimatedRepair || damage.estimatedRepairCost || 0
       },
       consistencyCheck: {
-        vehicleMatch: consistency.vehicleMatch ?? true,
+        vehicleMatch: consistency.vehicleMatch ?? (policyMatch.vehicleMatch?.matchStatus === 'MATCH'),
         policyValid: consistency.policyValid ?? true,
         damageConsistent: consistency.damageConsistent ?? true,
         incidentPlausible: consistency.incidentPlausible ?? true,
-        summary: consistency.summary || 'Consistency check completed'
+        summary: consistency.summary || 'Consistency analysis pending'
       },
       writeOffEstimation: {
-        insuredValue: writeOff.insuredValue || 0,
-        repairCost: writeOff.estimatedRepairCost || 0,
+        insuredValue: writeOff.insuredValue || policyData.sumInsured || 0,
+        repairCost: writeOff.estimatedRepairCost || damage.totalEstimatedRepair || 0,
         writeOffPercentage: writeOff.writeOffPercentage || 0,
         classification: writeOff.classification || 'REPAIR',
-        recommendation: writeOff.recommendation || 'Assessment completed'
+        recommendation: writeOff.recommendation || 'Repair cost analysis pending'
       },
       riskIndicators: consistency.fraudIndicators?.map((fi: any) => ({
-        level: fi.severity || 'LOW',
+        level: fi.severity || fi.level || 'LOW',
         type: fi.type || 'General',
         description: fi.description || '',
         details: fi.details || ''
@@ -449,9 +474,12 @@ export default function Home() {
       finalRecommendation: {
         decision: results.finalRecommendation || 'INVESTIGATE',
         reason: results.recommendationReason || 'Manual review recommended',
-        confidence: results.confidence || 75
+        confidence: results.confidence || 50
       }
     }
+    
+    console.log('[Transform] Output:', transformed)
+    return transformed
   }
 
   const getMockResults = (): Omit<ClaimResults, 'claimNumber' | 'processedAt'> => ({

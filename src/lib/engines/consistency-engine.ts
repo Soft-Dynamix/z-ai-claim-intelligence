@@ -164,13 +164,20 @@ POLICY DATA:
   }
 
   if (damageAssessment) {
+    const damagedAreasList = Array.isArray(damageAssessment.damagedAreas) 
+      ? damageAssessment.damagedAreas.map((a: any) => typeof a === 'string' ? a : a?.area || a?.name || 'Unknown').join(', ')
+      : 'Not specified'
+    const safetySystemsList = Array.isArray(damageAssessment.safetySystemsAffected)
+      ? damageAssessment.safetySystemsAffected.join(', ')
+      : 'None identified'
+    
     sections.push(`
 DAMAGE ASSESSMENT:
-- Severity: ${damageAssessment.overallSeverity}
-- Severity Score: ${damageAssessment.severityScore}%
-- Damaged Areas: ${damageAssessment.damagedAreas.map(a => a.area).join(', ')}
-- Structural Damage: ${damageAssessment.structuralDamage}
-- Safety Systems: ${damageAssessment.safetySystemsAffected.join(', ')}
+- Severity: ${damageAssessment.overallSeverity || damageAssessment.severityAssessment || 'Unknown'}
+- Severity Score: ${damageAssessment.severityScore || 'N/A'}%
+- Damaged Areas: ${damagedAreasList}
+- Structural Damage: ${damageAssessment.structuralDamage || 'Not assessed'}
+- Safety Systems: ${safetySystemsList}
 `)
   }
 
@@ -181,7 +188,7 @@ VEHICLE MATCH:
 - VIN Match: ${vehicleMatch.vinMatch}
 - Registration Match: ${vehicleMatch.registrationMatch}
 - Make/Model Match: ${vehicleMatch.makeModelMatch}
-- Discrepancies: ${vehicleMatch.discrepancies.join(', ')}
+- Discrepancies: ${Array.isArray(vehicleMatch.discrepancies) ? vehicleMatch.discrepancies.join(', ') : 'None'}
 `)
   }
 
