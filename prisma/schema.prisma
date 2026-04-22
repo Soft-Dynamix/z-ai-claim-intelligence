@@ -1,0 +1,324 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Main Claim Record
+model Claim {
+  id                String   @id @default(cuid())
+  claimNumber       String   @unique
+  status            ClaimStatus @default(DRAFT)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Vehicle Information
+  vehicle           Vehicle?
+  
+  // Policy Information
+  policy            Policy?
+  
+  // Incident Details
+  incident          Incident?
+  
+  // Documents
+  documents         Document[]
+  
+  // Damage Assessment
+  damageAssessment  DamageAssessment?
+  
+  // Consistency Check Results
+  consistencyCheck  ConsistencyCheck?
+  
+  // Final Report
+  report            Report?
+  
+  // Write-off estimation
+  writeOffEstimation WriteOffEstimation?
+}
+
+enum ClaimStatus {
+  DRAFT
+  PROCESSING
+  ANALYZING
+  VALIDATING
+  COMPLETED
+  REQUIRES_REVIEW
+  REJECTED
+}
+
+// Vehicle Information
+model Vehicle {
+  id                String   @id @default(cuid())
+  claimId           String   @unique
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  // From License Disc OCR
+  registrationNumber String?
+  vin               String?
+  make              String?
+  model             String?
+  year              Int?
+  engineNumber      String?
+  
+  // Confidence scores for OCR
+  regConfidence     Float?
+  vinConfidence     Float?
+  
+  // Observed from photos (from Damage Analyzer)
+  observedMake      String?
+  observedModel     String?
+  observedYear      Int?
+  observedColor     String?
+  
+  // Match status
+  matchStatus       VehicleMatchStatus @default(PENDING)
+  matchDetails      String? // JSON string with match analysis
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum VehicleMatchStatus {
+  PENDING
+  MATCH
+  PARTIAL_MATCH
+  MISMATCH
+  ERROR
+}
+
+// Policy Information
+model Policy {
+  id                String   @id @default(cuid())
+  claimId           String   @unique
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  // From Policy Schedule OCR
+  policyNumber      String?
+  insuredName       String?
+  insurerName       String?
+  startDate         DateTime?
+  endDate           DateTime?
+  
+  // Insured Vehicle Details
+  insuredVin        String?
+  insuredRegNumber  String?
+  insuredMake       String?
+  insuredModel      String?
+  insuredYear       Int?
+  
+  // Coverage
+  sumInsured        Float?
+  excess            Float?
+  
+  // Extras/Accessories
+  insuredExtras     String? // JSON array of extras
+  totalExtrasValue  Float?
+  
+  // Policy Conditions
+  conditions        String? // JSON array of conditions
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Incident Details
+model Incident {
+  id                String   @id @default(cuid())
+  claimId           String   @unique
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  // From Claim Form OCR
+  incidentDate      DateTime?
+  incidentTime      String?
+  location          String?
+  description       String?
+  
+  // Driver Information
+  driverName        String?
+  driverLicense     String?
+  driverContact     String?
+  
+  // Weather/Conditions
+  weatherConditions String?
+  roadConditions    String?
+  
+  // Third Party Info
+  thirdPartyInvolved Boolean @default(false)
+  thirdPartyDetails String? // JSON
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Documents
+model Document {
+  id                String   @id @default(cuid())
+  claimId           String
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  type              DocumentType
+  fileName          String
+  filePath          String
+  fileSize          Int
+  mimeType          String
+  
+  // OCR Results
+  extractedText     String?
+  extractedData     String? // JSON with structured data
+  ocrConfidence     Float?
+  ocrStatus         OCRStatus @default(PENDING)
+  
+  createdAt         DateTime @default(now())
+}
+
+enum DocumentType {
+  LICENSE_DISC
+  CLAIM_FORM
+  POLICY_SCHEDULE
+  DAMAGE_PHOTO
+  ASSESSOR_REPORT
+  POLICE_REPORT
+  REPAIR_QUOTE
+  OTHER
+}
+
+enum OCRStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// Damage Assessment
+model DamageAssessment {
+  id                String   @id @default(cuid())
+  claimId           String   @unique
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  // Overall Severity
+  overallSeverity   DamageSeverity
+  severityScore     Float? // 0-100
+  
+  // Damage Areas (JSON array)
+  damagedAreas      String?
+  
+  // Estimated Repair Cost
+  estimatedRepairCost Float?
+  repairCostConfidence Float?
+  
+  // Detailed Analysis
+  analysisDetails   String? // JSON with detailed damage breakdown
+  
+  // Assessor Notes
+  assessorNotes     String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum DamageSeverity {
+  MINOR
+  MODERATE
+  SEVERE
+  TOTAL_LOSS
+  PENDING
+}
+
+// Consistency Check / Fraud Detection
+model ConsistencyCheck {
+  id                String   @id @default(cuid())
+  claimId           String   @unique
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  // Check Results
+  vehicleMatch      Boolean?
+  policyValid       Boolean?
+  damageConsistent  Boolean?
+  incidentPlausible Boolean?
+  
+  // Risk Indicators (JSON array)
+  riskIndicators    String?
+  
+  // Fraud Flags (JSON array)
+  fraudFlags        String?
+  
+  // Overall Risk Score
+  riskScore         Float? // 0-100
+  
+  // Validation Summary
+  summary           String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Write-Off Estimation
+model WriteOffEstimation {
+  id                String   @id @default(cuid())
+  claimId           String   @unique
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  // Financial Calculations
+  insuredValue      Float?
+  estimatedRepairCost Float?
+  writeOffPercentage Float?
+  
+  // Classification
+  classification    WriteOffClassification
+  recommendation    String?
+  
+  // Assumptions made
+  assumptions       String? // JSON array
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum WriteOffClassification {
+  REPAIR
+  BORDERLINE
+  LIKELY_WRITE_OFF
+  TOTAL_LOSS
+  PENDING
+}
+
+// Final Report
+model Report {
+  id                String   @id @default(cuid())
+  claimId           String   @unique
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  // Report Content
+  vehicleSection    String? // JSON
+  policySection     String? // JSON
+  incidentSection   String? // JSON
+  damageSection     String? // JSON
+  consistencySection String? // JSON
+  writeOffSection   String? // JSON
+  riskSection       String? // JSON
+  
+  // Final Recommendation
+  recommendation    ReportRecommendation?
+  recommendationReason String?
+  
+  // Generated PDF
+  pdfPath           String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum ReportRecommendation {
+  APPROVE
+  INVESTIGATE
+  REJECT
+  WRITE_OFF
+  PENDING
+}
