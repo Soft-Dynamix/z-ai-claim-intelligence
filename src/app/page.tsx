@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -255,7 +255,6 @@ export default function Home() {
     results: null
   })
 
-  const [dragActive, setDragActive] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [animatedProgress, setAnimatedProgress] = useState(0)
   
@@ -296,60 +295,10 @@ export default function Home() {
     }
   }, [claim.status])
 
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
-    } else if (e.type === 'dragleave') {
-      setDragActive(false)
-    }
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFiles(Array.from(e.dataTransfer.files))
-    }
-  }, [])
-
-  const handleFiles = (files: File[]) => {
-    const newDocs: UploadedDocument[] = files.map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      name: file.name,
-      type: detectDocumentType(file.name),
-      size: file.size,
-      status: 'pending'
-    }))
-
-    setClaim(prev => ({
-      ...prev,
-      documents: [...prev.documents, ...newDocs]
-    }))
-  }
-
-  const detectDocumentType = (filename: string): UploadedDocument['type'] => {
-    const lower = filename.toLowerCase()
-    if (lower.includes('license') || lower.includes('disc')) return 'license_disc'
-    if (lower.includes('claim') || lower.includes('form')) return 'claim_form'
-    if (lower.includes('policy') || lower.includes('schedule')) return 'policy_schedule'
-    return 'damage_photo'
-  }
-
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B'
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-  }
-
-  const removeDocument = (id: string) => {
-    setClaim(prev => ({
-      ...prev,
-      documents: prev.documents.filter(d => d.id !== id)
-    }))
   }
 
   const startProcessing = async () => {
@@ -693,43 +642,171 @@ export default function Home() {
     URL.revokeObjectURL(url)
   }
 
-  // Document type card component
-  const DocumentTypeCard = ({ type, icon: Icon, title, desc, count }: { 
-    type: string
+  // Document upload card component - separate upload zone for each type
+  const DocumentUploadCard = ({ 
+    docType, 
+    icon: Icon, 
+    title, 
+    desc, 
+    required,
+    bgColor,
+    iconColor 
+  }: { 
+    docType: UploadedDocument['type']
     icon: React.ElementType
     title: string
     desc: string
-    count: number 
-  }) => (
-    <Card className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${count > 0 ? 'ring-2 ring-emerald-200' : ''}`}>
-      <div className="absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 opacity-50" />
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${count > 0 ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gray-100'}`}>
-            <Icon className={`w-5 h-5 ${count > 0 ? 'text-white' : 'text-gray-400'}`} />
-          </div>
-          <CardTitle className="text-sm">{title}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-xs text-gray-500 mb-2">{desc}</p>
-        <div className="flex items-center gap-2">
-          {count > 0 ? (
-            <>
-              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
+    required: boolean
+    bgColor: string
+    iconColor: string
+  }) => {
+    const docs = claim.documents.filter(d => d.type === docType)
+    const [isDragOver, setIsDragOver] = useState(false)
+    
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragOver(true)
+    }
+    
+    const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragOver(false)
+    }
+    
+    const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragOver(false)
+      
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        const files = Array.from(e.dataTransfer.files)
+        const newDocs: UploadedDocument[] = files.map(file => ({
+          id: Math.random().toString(36).substr(2, 9),
+          name: file.name,
+          type: docType,
+          size: file.size,
+          status: 'pending'
+        }))
+        setClaim(prev => ({
+          ...prev,
+          documents: [...prev.documents, ...newDocs]
+        }))
+      }
+    }
+    
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+        const files = Array.from(e.target.files)
+        const newDocs: UploadedDocument[] = files.map(file => ({
+          id: Math.random().toString(36).substr(2, 9),
+          name: file.name,
+          type: docType,
+          size: file.size,
+          status: 'pending'
+        }))
+        setClaim(prev => ({
+          ...prev,
+          documents: [...prev.documents, ...newDocs]
+        }))
+      }
+    }
+    
+    const removeDoc = (id: string) => {
+      setClaim(prev => ({
+        ...prev,
+        documents: prev.documents.filter(d => d.id !== id)
+      }))
+    }
+    
+    return (
+      <Card className={`relative overflow-hidden transition-all duration-300 ${docs.length > 0 ? 'ring-2 ring-emerald-400 shadow-lg' : isDragOver ? 'ring-2 ring-blue-400 shadow-lg' : 'hover:shadow-md'}`}>
+        {/* Header */}
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${bgColor}`}>
+                <Icon className={`w-6 h-6 ${iconColor}`} />
+              </div>
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  {title}
+                  {required && <span className="text-red-500 text-sm">*</span>}
+                </CardTitle>
+                <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+              </div>
+            </div>
+            {docs.length > 0 && (
+              <Badge className="bg-emerald-100 text-emerald-700">
                 <CheckCircle2 className="w-3 h-3 mr-1" />
-                {count} uploaded
+                {docs.length} file{docs.length > 1 ? 's' : ''}
               </Badge>
-            </>
-          ) : (
-            <Badge variant="outline" className="text-gray-400 border-dashed">
-              Pending
-            </Badge>
+            )}
+          </div>
+        </CardHeader>
+        
+        <CardContent className="pt-0">
+          {/* Drop Zone */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`
+              relative border-2 border-dashed rounded-xl p-4 text-center transition-all duration-200 cursor-pointer
+              ${isDragOver 
+                ? 'border-blue-500 bg-blue-50 scale-[1.02]' 
+                : docs.length > 0
+                  ? 'border-emerald-300 bg-emerald-50/50 hover:bg-emerald-50'
+                  : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100'
+              }
+            `}
+          >
+            <input
+              type="file"
+              multiple
+              accept="image/*,.pdf"
+              onChange={handleFileSelect}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+            <div className="flex items-center justify-center gap-2">
+              <Upload className={`w-4 h-4 ${docs.length > 0 ? 'text-emerald-600' : 'text-gray-400'}`} />
+              <span className={`text-sm font-medium ${docs.length > 0 ? 'text-emerald-700' : 'text-gray-600'}`}>
+                {docs.length > 0 ? 'Add more files' : 'Click or drag files here'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG • Max 10MB</p>
+          </div>
+          
+          {/* Uploaded Files List */}
+          {docs.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {docs.map(doc => (
+                <div 
+                  key={doc.id}
+                  className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span className="text-sm text-gray-700 truncate">{doc.name}</span>
+                    <span className="text-xs text-gray-400 flex-shrink-0">({formatFileSize(doc.size)})</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0"
+                    onClick={() => removeDoc(doc.id)}
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
           )}
-        </div>
-      </CardContent>
-    </Card>
-  )
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100">
@@ -879,144 +956,152 @@ export default function Home() {
           /* Upload Section */
           <div className="space-y-6">
             {/* Hero Section */}
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-full text-emerald-700 text-sm font-medium mb-4">
                 <Sparkles className="w-4 h-4" />
                 AI-Powered Analysis
               </div>
-              <h2 className="text-4xl font-bold text-gray-900 mb-3">
-                Insurance Claim Intelligence
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                Upload Claim Documents
               </h2>
-              <p className="text-gray-600 max-w-2xl mx-auto text-lg">
-                Upload your claim documents and let our AI-powered system extract, analyze, 
-                and validate your claim with insurer-grade precision.
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Upload each document type separately. All required documents must be uploaded before analysis can begin.
               </p>
             </div>
 
-            {/* Upload Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {[
-                { type: 'license_disc', icon: Car, title: 'License Disc', desc: 'Vehicle registration & VIN' },
-                { type: 'claim_form', icon: FileText, title: 'Claim Form', desc: 'Incident details & driver info' },
-                { type: 'policy_schedule', icon: Shield, title: 'Policy Schedule', desc: 'Coverage & insured value' },
-                { type: 'damage_photo', icon: AlertTriangle, title: 'Damage Photos', desc: 'Vehicle damage evidence' }
-              ].map(({ type, icon, title, desc }) => (
-                <DocumentTypeCard 
-                  key={type}
-                  type={type}
-                  icon={icon}
-                  title={title}
-                  desc={desc}
-                  count={claim.documents.filter(d => d.type === type).length}
+            {/* Required Documents Section */}
+            <Card className="bg-gradient-to-r from-slate-50 to-gray-50 border-slate-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileCheck className="w-5 h-5 text-slate-600" />
+                  Required Documents
+                  <span className="text-sm font-normal text-gray-500 ml-2">
+                    ({claim.documents.filter(d => ['license_disc', 'claim_form', 'policy_schedule'].includes(d.type)).length}/3 uploaded)
+                  </span>
+                </CardTitle>
+                <CardDescription>These documents are required for claim processing</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <DocumentUploadCard
+                    docType="license_disc"
+                    icon={Car}
+                    title="License Disc"
+                    desc="Vehicle registration & VIN number"
+                    required={true}
+                    bgColor="bg-blue-100"
+                    iconColor="text-blue-600"
+                  />
+                  <DocumentUploadCard
+                    docType="claim_form"
+                    icon={FileText}
+                    title="Claim Form"
+                    desc="Incident details & driver information"
+                    required={true}
+                    bgColor="bg-purple-100"
+                    iconColor="text-purple-600"
+                  />
+                  <DocumentUploadCard
+                    docType="policy_schedule"
+                    icon={Shield}
+                    title="Policy Schedule"
+                    desc="Coverage details & insured value"
+                    required={true}
+                    bgColor="bg-emerald-100"
+                    iconColor="text-emerald-600"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Supporting Documents Section */}
+            <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  Supporting Documents
+                  <span className="text-sm font-normal text-gray-500 ml-2">
+                    ({claim.documents.filter(d => d.type === 'damage_photo').length} uploaded)
+                  </span>
+                </CardTitle>
+                <CardDescription>Upload damage photos to help assess the claim</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DocumentUploadCard
+                  docType="damage_photo"
+                  icon={AlertTriangle}
+                  title="Damage Photos"
+                  desc="Upload multiple photos showing vehicle damage from different angles"
+                  required={false}
+                  bgColor="bg-amber-100"
+                  iconColor="text-amber-600"
                 />
-              ))}
-            </div>
+              </CardContent>
+            </Card>
 
-            {/* Drag & Drop Zone */}
-            <div
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-              className={`
-                relative border-2 border-dashed rounded-2xl p-16 text-center transition-all duration-300
-                ${dragActive 
-                  ? 'border-emerald-500 bg-emerald-50 scale-[1.02]' 
-                  : 'border-gray-300 hover:border-emerald-400 bg-white hover:bg-gray-50'
-                }
-              `}
-            >
-              <input
-                type="file"
-                multiple
-                accept="image/*,.pdf"
-                onChange={(e) => e.target.files && handleFiles(Array.from(e.target.files))}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
-              <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
-                <Upload className="w-10 h-10 text-emerald-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                Drop documents here or click to browse
-              </h3>
-              <p className="text-gray-500">
-                Supported: PDF, JPG, PNG • Max 10MB per file
-              </p>
-            </div>
-
-            {/* Uploaded Documents List */}
-            {claim.documents.length > 0 && (
-              <Card className="overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <FileCheck className="w-5 h-5 text-emerald-600" />
-                    Uploaded Documents ({claim.documents.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="divide-y">
-                    {claim.documents.map((doc) => (
-                      <div 
-                        key={doc.id}
-                        className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                            doc.type === 'license_disc' ? 'bg-blue-100' :
-                            doc.type === 'claim_form' ? 'bg-purple-100' :
-                            doc.type === 'policy_schedule' ? 'bg-emerald-100' :
-                            'bg-amber-100'
-                          }`}>
-                            {doc.type === 'license_disc' && <Car className="w-6 h-6 text-blue-600" />}
-                            {doc.type === 'claim_form' && <FileText className="w-6 h-6 text-purple-600" />}
-                            {doc.type === 'policy_schedule' && <Shield className="w-6 h-6 text-emerald-600" />}
-                            {doc.type === 'damage_photo' && <AlertTriangle className="w-6 h-6 text-amber-600" />}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{doc.name}</p>
-                            <p className="text-sm text-gray-500">{formatFileSize(doc.size)}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="capitalize">
-                            {doc.type.replace('_', ' ')}
-                          </Badge>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => removeDocument(doc.id)}
-                            className="text-gray-400 hover:text-red-500 hover:bg-red-50"
-                          >
-                            <XCircle className="w-5 h-5" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+            {/* Upload Summary & Process Button */}
+            <Card className={`transition-all duration-300 ${
+              claim.documents.filter(d => ['license_disc', 'claim_form', 'policy_schedule'].includes(d.type)).length >= 3 
+                ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-300 ring-2 ring-emerald-200' 
+                : 'bg-gray-50 border-gray-200'
+            }`}>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      {claim.documents.filter(d => ['license_disc', 'claim_form', 'policy_schedule'].includes(d.type)).length >= 3 ? (
+                        <>
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                          Ready for Analysis
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-5 h-5 text-amber-600" />
+                          Upload Required Documents
+                        </>
+                      )}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {claim.documents.filter(d => ['license_disc', 'claim_form', 'policy_schedule'].includes(d.type)).length >= 3 
+                        ? `All ${claim.documents.length} documents uploaded. Ready to start AI analysis.`
+                        : `Upload ${3 - claim.documents.filter(d => ['license_disc', 'claim_form', 'policy_schedule'].includes(d.type)).length} more required document(s) to proceed.`
+                      }
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Process Button */}
-            <div className="flex justify-center pt-4">
-              <Button
-                size="lg"
-                onClick={startProcessing}
-                disabled={claim.documents.length === 0}
-                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-12 py-7 text-lg rounded-2xl shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:shadow-none transition-all"
-              >
-                <Zap className="w-6 h-6 mr-2" />
-                Start AI Analysis
-              </Button>
-            </div>
-            
-            {/* Processing Info */}
-            <div className="text-center text-sm text-gray-500 max-w-xl mx-auto">
-              <p className="flex items-center justify-center gap-2">
-                <Cpu className="w-4 h-4" />
-                6 specialized AI engines will process your documents
-              </p>
-            </div>
+                  <Button
+                    size="lg"
+                    onClick={startProcessing}
+                    disabled={claim.documents.filter(d => ['license_disc', 'claim_form', 'policy_schedule'].includes(d.type)).length < 3}
+                    className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-6 text-lg rounded-xl shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:shadow-none transition-all"
+                  >
+                    <Zap className="w-5 h-5 mr-2" />
+                    Start AI Analysis
+                  </Button>
+                </div>
+                
+                {/* Processing Info */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Cpu className="w-4 h-4" />
+                      6 AI Engines
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Scan className="w-4 h-4" />
+                      OCR Extraction
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <ShieldAlert className="w-4 h-4" />
+                      Fraud Detection
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Report Generation
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         ) : claim.status === 'completed' && claim.results ? (
           /* Results Section */

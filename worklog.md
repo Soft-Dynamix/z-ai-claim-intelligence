@@ -109,3 +109,33 @@ Stage Summary:
 - Assessor can provide independent decision overriding or confirming AI recommendation
 - All observations included in exported report
 - Database schema ready for persistent storage (pending backend API integration)
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Redesign document upload with separate upload zones for each document type
+
+Work Log:
+- Replaced single drag-and-drop zone with separate upload cards for each document type
+- Created new DocumentUploadCard component with:
+  - Individual drag-and-drop area per document type
+  - File list showing uploaded files with size
+  - Remove file functionality
+  - Visual feedback for drag over state
+  - Color-coded backgrounds and icons per document type
+- Reorganized upload section into:
+  - Required Documents section (License Disc, Claim Form, Policy Schedule)
+  - Supporting Documents section (Damage Photos)
+  - Upload Summary card with readiness status and Start Analysis button
+- Added required indicator (*) for mandatory documents
+- Changed analysis button to only enable when all 3 required documents are uploaded
+- Added document count progress indicators (e.g., "3/3 uploaded")
+- Removed unused code (handleDrag, handleDrop, handleFiles, removeDocument, detectDocumentType, dragActive state)
+- Added processing info footer showing 6 AI Engines, OCR Extraction, Fraud Detection, Report Generation icons
+
+Stage Summary:
+- Documents are now uploaded separately by type, ensuring correct document classification
+- Users can clearly see which documents are required vs optional
+- Visual progress tracking shows readiness for analysis
+- Cannot start analysis until all required documents are uploaded
+- Cleaner UX that prevents document type confusion
