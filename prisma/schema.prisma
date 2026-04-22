@@ -41,6 +41,10 @@ model Claim {
   
   // Write-off estimation
   writeOffEstimation WriteOffEstimation?
+  
+  // Assessor Observations & Notes
+  assessorObservations AssessorObservation[]
+  assessorSummary      AssessorSummary?
 }
 
 enum ClaimStatus {
@@ -321,4 +325,90 @@ enum ReportRecommendation {
   REJECT
   WRITE_OFF
   PENDING
+}
+
+// Assessor Observations and Notes
+model AssessorObservation {
+  id                String   @id @default(cuid())
+  claimId           String
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  // Observation Category
+  category          ObservationCategory
+  
+  // Observation Content
+  title             String?
+  observation       String    // The main observation/note text
+  severity          ObservationSeverity @default(INFO)
+  
+  // Assessor Information
+  assessorName      String?
+  assessorId        String?
+  
+  // Related Section (which part of claim this relates to)
+  relatedSection    String?   // vehicle, policy, damage, incident, etc.
+  
+  // Follow-up Actions
+  requiresFollowUp  Boolean   @default(false)
+  followUpAction    String?
+  followUpResolved  Boolean   @default(false)
+  
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([claimId])
+  @@index([category])
+}
+
+enum ObservationCategory {
+  VEHICLE_IDENTIFICATION
+  POLICY_COVERAGE
+  DAMAGE_ASSESSMENT
+  INCIDENT_DETAILS
+  FRAUD_INDICATOR
+  DOCUMENT_QUALITY
+  REPAIR_ESTIMATE
+  GENERAL_NOTE
+  FOLLOW_UP
+  RECOMMENDATION
+}
+
+enum ObservationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+  POSITIVE
+}
+
+// Claim-level assessor summary
+model AssessorSummary {
+  id                String   @id @default(cuid())
+  claimId           String   @unique
+  claim             Claim    @relation(fields: [claimId], references: [id])
+  
+  // Overall Assessor Notes
+  overallNotes      String?
+  
+  // Assessor Decision (can override or confirm AI recommendation)
+  assessorDecision  ReportRecommendation?
+  assessorDecisionReason String?
+  
+  // Review Status
+  reviewStatus      ReviewStatus @default(PENDING_REVIEW)
+  reviewCompletedAt DateTime?
+  
+  // Assessor Info
+  reviewedBy        String?
+  
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+enum ReviewStatus {
+  PENDING_REVIEW
+  UNDER_REVIEW
+  REVIEW_COMPLETED
+  ESCALATED
 }

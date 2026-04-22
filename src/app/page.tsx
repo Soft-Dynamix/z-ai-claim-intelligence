@@ -40,7 +40,18 @@ import {
   Eye,
   FileSearch,
   Cpu,
-  Database
+  Database,
+  PenLine,
+  MessageSquarePlus,
+  User,
+  Flag,
+  CheckSquare,
+  Trash2,
+  Edit3,
+  Save,
+  Plus,
+  StickyNote,
+  MessageCircle
 } from 'lucide-react'
 
 // Types
@@ -149,6 +160,71 @@ interface ClaimHistoryItem {
   amount: number
 }
 
+// Assessor Observation Types
+interface AssessorObservation {
+  id: string
+  category: ObservationCategory
+  title: string
+  observation: string
+  severity: ObservationSeverity
+  relatedSection: string
+  requiresFollowUp: boolean
+  followUpAction: string
+  followUpResolved: boolean
+  assessorName: string
+  createdAt: string
+}
+
+type ObservationCategory = 
+  | 'VEHICLE_IDENTIFICATION'
+  | 'POLICY_COVERAGE'
+  | 'DAMAGE_ASSESSMENT'
+  | 'INCIDENT_DETAILS'
+  | 'FRAUD_INDICATOR'
+  | 'DOCUMENT_QUALITY'
+  | 'REPAIR_ESTIMATE'
+  | 'GENERAL_NOTE'
+  | 'FOLLOW_UP'
+  | 'RECOMMENDATION'
+
+type ObservationSeverity = 'INFO' | 'WARNING' | 'CRITICAL' | 'POSITIVE'
+
+interface AssessorSummary {
+  overallNotes: string
+  assessorDecision: 'APPROVE' | 'INVESTIGATE' | 'REJECT' | 'WRITE_OFF' | null
+  assessorDecisionReason: string
+  reviewedBy: string
+  reviewCompletedAt: string | null
+}
+
+// Observation category labels
+const OBSERVATION_CATEGORIES: { value: ObservationCategory; label: string; icon: React.ElementType }[] = [
+  { value: 'VEHICLE_IDENTIFICATION', label: 'Vehicle ID', icon: Car },
+  { value: 'POLICY_COVERAGE', label: 'Policy/Coverage', icon: Shield },
+  { value: 'DAMAGE_ASSESSMENT', label: 'Damage', icon: AlertTriangle },
+  { value: 'INCIDENT_DETAILS', label: 'Incident', icon: FileText },
+  { value: 'FRAUD_INDICATOR', label: 'Fraud Indicator', icon: ShieldAlert },
+  { value: 'DOCUMENT_QUALITY', label: 'Doc Quality', icon: FileCheck },
+  { value: 'REPAIR_ESTIMATE', label: 'Repair Estimate', icon: Calculator },
+  { value: 'GENERAL_NOTE', label: 'General Note', icon: StickyNote },
+  { value: 'FOLLOW_UP', label: 'Follow-up', icon: CheckSquare },
+  { value: 'RECOMMENDATION', label: 'Recommendation', icon: Flag },
+]
+
+const SEVERITY_COLORS: Record<ObservationSeverity, string> = {
+  INFO: 'bg-blue-100 text-blue-800 border-blue-200',
+  WARNING: 'bg-amber-100 text-amber-800 border-amber-200',
+  CRITICAL: 'bg-red-100 text-red-800 border-red-200',
+  POSITIVE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+}
+
+const SEVERITY_ICONS: Record<ObservationSeverity, React.ElementType> = {
+  INFO: AlertCircle,
+  WARNING: AlertTriangle,
+  CRITICAL: XCircle,
+  POSITIVE: CheckCircle2,
+}
+
 // Pipeline steps configuration with detailed descriptions
 const PIPELINE_STEPS = [
   { id: 'ocr', name: 'OCR Extraction', icon: Scan, description: 'Extracting data from documents', detail: 'Scanning documents with Vision AI...' },
@@ -182,6 +258,30 @@ export default function Home() {
   const [dragActive, setDragActive] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [animatedProgress, setAnimatedProgress] = useState(0)
+  
+  // Assessor Notes State
+  const [observations, setObservations] = useState<AssessorObservation[]>([])
+  const [assessorSummary, setAssessorSummary] = useState<AssessorSummary>({
+    overallNotes: '',
+    assessorDecision: null,
+    assessorDecisionReason: '',
+    reviewedBy: '',
+    reviewCompletedAt: null
+  })
+  const [isAddingObservation, setIsAddingObservation] = useState(false)
+  const [editingObservationId, setEditingObservationId] = useState<string | null>(null)
+  
+  // New observation form state
+  const [newObservation, setNewObservation] = useState<Partial<AssessorObservation>>({
+    category: 'GENERAL_NOTE',
+    severity: 'INFO',
+    title: '',
+    observation: '',
+    relatedSection: '',
+    requiresFollowUp: false,
+    followUpAction: '',
+    assessorName: ''
+  })
 
   // Animate progress bar
   useEffect(() => {
@@ -405,8 +505,111 @@ export default function Home() {
     }
   }
 
+  // Assessor Observation Management Functions
+  const addObservation = () => {
+    if (!newObservation.observation || !newObservation.title) return
+    
+    const observation: AssessorObservation = {
+      id: Math.random().toString(36).substr(2, 9),
+      category: newObservation.category || 'GENERAL_NOTE',
+      title: newObservation.title,
+      observation: newObservation.observation,
+      severity: newObservation.severity || 'INFO',
+      relatedSection: newObservation.relatedSection || '',
+      requiresFollowUp: newObservation.requiresFollowUp || false,
+      followUpAction: newObservation.followUpAction || '',
+      followUpResolved: false,
+      assessorName: newObservation.assessorName || 'Assessor',
+      createdAt: new Date().toLocaleString()
+    }
+    
+    setObservations(prev => [...prev, observation])
+    setNewObservation({
+      category: 'GENERAL_NOTE',
+      severity: 'INFO',
+      title: '',
+      observation: '',
+      relatedSection: '',
+      requiresFollowUp: false,
+      followUpAction: '',
+      assessorName: newObservation.assessorName
+    })
+    setIsAddingObservation(false)
+  }
+
+  const updateObservation = (id: string, updates: Partial<AssessorObservation>) => {
+    setObservations(prev => prev.map(obs => 
+      obs.id === id ? { ...obs, ...updates } : obs
+    ))
+  }
+
+  const deleteObservation = (id: string) => {
+    setObservations(prev => prev.filter(obs => obs.id !== id))
+  }
+
+  const toggleFollowUpResolved = (id: string) => {
+    setObservations(prev => prev.map(obs => 
+      obs.id === id ? { ...obs, followUpResolved: !obs.followUpResolved } : obs
+    ))
+  }
+
+  const getCategoryLabel = (category: ObservationCategory) => {
+    return OBSERVATION_CATEGORIES.find(c => c.value === category)?.label || category
+  }
+
+  const getCategoryIcon = (category: ObservationCategory) => {
+    return OBSERVATION_CATEGORIES.find(c => c.value === category)?.icon || StickyNote
+  }
+
   const exportPDF = () => {
     if (!claim.results) return
+    
+    // Generate observations HTML
+    const observationsHTML = observations.length > 0 ? `
+    <div class="section" style="background: #fef3c7; border: 1px solid #f59e0b;">
+      <h2>📋 Assessor Observations (${observations.length})</h2>
+      ${observations.map(obs => `
+        <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid ${
+          obs.severity === 'CRITICAL' ? '#ef4444' : 
+          obs.severity === 'WARNING' ? '#f59e0b' : 
+          obs.severity === 'POSITIVE' ? '#10b981' : '#3b82f6'
+        };">
+          <p style="margin: 0; font-weight: 600;">${obs.title}</p>
+          <p style="margin: 5px 0; color: #6b7280;">${obs.observation}</p>
+          <p style="margin: 0; font-size: 11px; color: #9ca3af;">
+            <span class="badge" style="background: ${
+              obs.severity === 'CRITICAL' ? '#fee2e2' : 
+              obs.severity === 'WARNING' ? '#fef3c7' : 
+              obs.severity === 'POSITIVE' ? '#d1fae5' : '#dbeafe'
+            }; color: ${
+              obs.severity === 'CRITICAL' ? '#991b1b' : 
+              obs.severity === 'WARNING' ? '#92400e' : 
+              obs.severity === 'POSITIVE' ? '#065f46' : '#1e40af'
+            };">${obs.severity}</span>
+            | ${obs.category.replace(/_/g, ' ')} | By: ${obs.assessorName} | ${obs.createdAt}
+            ${obs.requiresFollowUp ? ` | <strong style="color: #d97706;">Follow-up: ${obs.followUpAction}</strong>` : ''}
+          </p>
+        </div>
+      `).join('')}
+    </div>
+    ` : ''
+    
+    // Generate assessor summary HTML
+    const assessorSummaryHTML = assessorSummary.reviewCompletedAt ? `
+    <div class="section" style="background: #ecfdf5; border: 1px solid #10b981;">
+      <h2>✅ Assessor Review</h2>
+      <p><span class="label">Reviewed By:</span> <span class="value">${assessorSummary.reviewedBy}</span></p>
+      <p><span class="label">Review Completed:</span> <span class="value">${assessorSummary.reviewCompletedAt}</span></p>
+      ${assessorSummary.assessorDecision ? `
+        <p><span class="label">Assessor Decision:</span> <span class="badge ${assessorSummary.assessorDecision === 'APPROVE' ? 'approved' : ''}">${assessorSummary.assessorDecision}</span></p>
+        <p>${assessorSummary.assessorDecisionReason}</p>
+      ` : ''}
+      ${assessorSummary.overallNotes ? `
+        <p><span class="label">Overall Notes:</span></p>
+        <p style="white-space: pre-wrap;">${assessorSummary.overallNotes}</p>
+      ` : ''}
+    </div>
+    ` : ''
     
     // Create a simple HTML report and download it
     const reportContent = `
@@ -459,15 +662,21 @@ export default function Home() {
     <p>${claim.results.writeOffEstimation.recommendation}</p>
   </div>
   
+  ${observationsHTML}
+  
+  ${assessorSummaryHTML}
+  
   <div class="section" style="background: linear-gradient(135deg, #10b981, #059669); color: white;">
-    <h2 style="color: white; border: none;">Final Recommendation</h2>
+    <h2 style="color: white; border: none;">AI Final Recommendation</h2>
     <p style="font-size: 24px; font-weight: bold;">${claim.results.finalRecommendation.decision}</p>
     <p style="opacity: 0.9;">${claim.results.finalRecommendation.reason}</p>
     <p style="opacity: 0.8; font-size: 14px;">Confidence: ${claim.results.finalRecommendation.confidence}%</p>
   </div>
   
   <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px;">
-    Generated by Z.ai Claim Intelligence System v2.0
+    Generated by Z.ai Claim Intelligence System v2.0<br>
+    ${observations.length > 0 ? `Includes ${observations.length} assessor observation(s)` : ''}<br>
+    ${assessorSummary.reviewCompletedAt ? `Reviewed by ${assessorSummary.reviewedBy}` : ''}
   </footer>
 </body>
 </html>
@@ -875,7 +1084,7 @@ export default function Home() {
 
             {/* Detailed Results Tabs */}
             <Tabs defaultValue="vehicle" className="space-y-4">
-              <TabsList className="grid grid-cols-4 lg:grid-cols-8 gap-1 h-auto p-1 bg-white rounded-xl shadow-sm">
+              <TabsList className="grid grid-cols-5 lg:grid-cols-9 gap-1 h-auto p-1 bg-white rounded-xl shadow-sm">
                 <TabsTrigger value="vehicle" className="text-xs rounded-lg">Vehicle</TabsTrigger>
                 <TabsTrigger value="policy" className="text-xs rounded-lg">Policy</TabsTrigger>
                 <TabsTrigger value="incident" className="text-xs rounded-lg">Incident</TabsTrigger>
@@ -883,6 +1092,10 @@ export default function Home() {
                 <TabsTrigger value="writeoff" className="text-xs rounded-lg">Write-Off</TabsTrigger>
                 <TabsTrigger value="consistency" className="text-xs rounded-lg">Consistency</TabsTrigger>
                 <TabsTrigger value="risk" className="text-xs rounded-lg">Risk</TabsTrigger>
+                <TabsTrigger value="assessor" className="text-xs rounded-lg bg-amber-50 data-[state=active]:bg-amber-100">
+                  <PenLine className="w-3 h-3 mr-1" />
+                  Notes
+                </TabsTrigger>
                 <TabsTrigger value="report" className="text-xs rounded-lg">Report</TabsTrigger>
               </TabsList>
 
@@ -1201,6 +1414,345 @@ export default function Home() {
                         </div>
                       ))}
                     </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Assessor Notes & Observations */}
+              <TabsContent value="assessor" className="space-y-4">
+                {/* Summary Card */}
+                <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <PenLine className="w-5 h-5 text-amber-600" />
+                        Assessor Observations & Notes
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="bg-white">
+                          {observations.length} observation{observations.length !== 1 ? 's' : ''}
+                        </Badge>
+                        <Badge variant="outline" className="bg-white">
+                          {observations.filter(o => o.requiresFollowUp && !o.followUpResolved).length} pending follow-up
+                        </Badge>
+                      </div>
+                    </div>
+                    <CardDescription>Record your observations, findings, and follow-up actions</CardDescription>
+                  </CardHeader>
+                </Card>
+
+                {/* Add Observation Button/Form */}
+                {!isAddingObservation ? (
+                  <Card className="border-dashed border-2 border-amber-300 bg-amber-50/30 hover:bg-amber-50/50 transition-colors cursor-pointer" onClick={() => setIsAddingObservation(true)}>
+                    <CardContent className="py-8 text-center">
+                      <MessageSquarePlus className="w-10 h-10 mx-auto text-amber-500 mb-3" />
+                      <p className="font-medium text-amber-700">Add New Observation</p>
+                      <p className="text-sm text-amber-600/70">Click to record a note, finding, or follow-up action</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="border-amber-300 shadow-lg">
+                    <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 border-b">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Plus className="w-5 h-5 text-amber-600" />
+                        New Observation
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-4">
+                      {/* Category and Severity Row */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 mb-2 block">Category</label>
+                          <select 
+                            className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                            value={newObservation.category}
+                            onChange={(e) => setNewObservation(prev => ({ ...prev, category: e.target.value as ObservationCategory }))}
+                          >
+                            {OBSERVATION_CATEGORIES.map(cat => (
+                              <option key={cat.value} value={cat.value}>{cat.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 mb-2 block">Severity</label>
+                          <select 
+                            className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                            value={newObservation.severity}
+                            onChange={(e) => setNewObservation(prev => ({ ...prev, severity: e.target.value as ObservationSeverity }))}
+                          >
+                            <option value="INFO">Info - General observation</option>
+                            <option value="WARNING">Warning - Needs attention</option>
+                            <option value="CRITICAL">Critical - Requires immediate action</option>
+                            <option value="POSITIVE">Positive - Good finding</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Title */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">Title</label>
+                        <input
+                          type="text"
+                          placeholder="Brief title for this observation..."
+                          className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                          value={newObservation.title || ''}
+                          onChange={(e) => setNewObservation(prev => ({ ...prev, title: e.target.value }))}
+                        />
+                      </div>
+
+                      {/* Observation */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">Observation Details</label>
+                        <textarea
+                          placeholder="Describe your observation in detail..."
+                          className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 min-h-[100px]"
+                          value={newObservation.observation || ''}
+                          onChange={(e) => setNewObservation(prev => ({ ...prev, observation: e.target.value }))}
+                        />
+                      </div>
+
+                      {/* Related Section & Assessor */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 mb-2 block">Related Section</label>
+                          <select 
+                            className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                            value={newObservation.relatedSection || ''}
+                            onChange={(e) => setNewObservation(prev => ({ ...prev, relatedSection: e.target.value }))}
+                          >
+                            <option value="">Select section...</option>
+                            <option value="vehicle">Vehicle Identification</option>
+                            <option value="policy">Policy & Coverage</option>
+                            <option value="incident">Incident Details</option>
+                            <option value="damage">Damage Assessment</option>
+                            <option value="writeoff">Write-Off Estimation</option>
+                            <option value="consistency">Consistency Check</option>
+                            <option value="general">General</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 mb-2 block">Assessor Name</label>
+                          <input
+                            type="text"
+                            placeholder="Your name"
+                            className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                            value={newObservation.assessorName || ''}
+                            onChange={(e) => setNewObservation(prev => ({ ...prev, assessorName: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Follow-up */}
+                      <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                        <div className="flex items-center gap-2 mb-3">
+                          <input
+                            type="checkbox"
+                            id="requiresFollowUp"
+                            className="rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                            checked={newObservation.requiresFollowUp || false}
+                            onChange={(e) => setNewObservation(prev => ({ ...prev, requiresFollowUp: e.target.checked }))}
+                          />
+                          <label htmlFor="requiresFollowUp" className="text-sm font-medium text-amber-800">
+                            Requires Follow-up Action
+                          </label>
+                        </div>
+                        {newObservation.requiresFollowUp && (
+                          <input
+                            type="text"
+                            placeholder="Describe the follow-up action needed..."
+                            className="w-full rounded-lg border border-amber-300 p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
+                            value={newObservation.followUpAction || ''}
+                            onChange={(e) => setNewObservation(prev => ({ ...prev, followUpAction: e.target.value }))}
+                          />
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="outline" onClick={() => setIsAddingObservation(false)}>
+                          Cancel
+                        </Button>
+                        <Button 
+                          onClick={addObservation}
+                          className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 gap-2"
+                          disabled={!newObservation.title || !newObservation.observation}
+                        >
+                          <Save className="w-4 h-4" />
+                          Save Observation
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Observations List */}
+                {observations.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4" />
+                      Recorded Observations
+                    </h3>
+                    {observations.map((obs) => {
+                      const CategoryIcon = getCategoryIcon(obs.category)
+                      const SeverityIcon = SEVERITY_ICONS[obs.severity]
+                      
+                      return (
+                        <Card key={obs.id} className={`${obs.followUpResolved ? 'opacity-60' : ''} hover:shadow-md transition-shadow`}>
+                          <CardContent className="pt-4">
+                            <div className="flex items-start gap-4">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${SEVERITY_COLORS[obs.severity]}`}>
+                                <SeverityIcon className="w-5 h-5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-2">
+                                  <Badge variant="outline" className="gap-1">
+                                    <CategoryIcon className="w-3 h-3" />
+                                    {getCategoryLabel(obs.category)}
+                                  </Badge>
+                                  <Badge className={SEVERITY_COLORS[obs.severity]}>
+                                    {obs.severity}
+                                  </Badge>
+                                  {obs.requiresFollowUp && (
+                                    <Badge className={obs.followUpResolved ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700 animate-pulse'}>
+                                      <Flag className="w-3 h-3 mr-1" />
+                                      {obs.followUpResolved ? 'Resolved' : 'Follow-up Required'}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <h4 className="font-semibold text-gray-900 mb-1">{obs.title}</h4>
+                                <p className="text-gray-600 text-sm mb-2">{obs.observation}</p>
+                                {obs.requiresFollowUp && obs.followUpAction && (
+                                  <div className="p-2 bg-amber-50 rounded-lg text-sm text-amber-800 mb-2">
+                                    <strong>Follow-up:</strong> {obs.followUpAction}
+                                  </div>
+                                )}
+                                <div className="flex items-center justify-between text-xs text-gray-400">
+                                  <div className="flex items-center gap-3">
+                                    <span className="flex items-center gap-1">
+                                      <User className="w-3 h-3" />
+                                      {obs.assessorName}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {obs.createdAt}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {obs.requiresFollowUp && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => toggleFollowUpResolved(obs.id)}
+                                        className="h-7 text-xs"
+                                      >
+                                        <CheckSquare className="w-3 h-3 mr-1" />
+                                        {obs.followUpResolved ? 'Unresolve' : 'Resolve'}
+                                      </Button>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => deleteObservation(obs.id)}
+                                      className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    >
+                                      <Trash2 className="w-3 h-3 mr-1" />
+                                      Delete
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Assessor Summary Section */}
+                <Card className="mt-6">
+                  <CardHeader className="bg-gradient-to-r from-slate-100 to-gray-100">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-gray-600" />
+                      Assessor Summary & Decision
+                    </CardTitle>
+                    <CardDescription>Provide your overall assessment and final decision</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Overall Notes</label>
+                      <textarea
+                        placeholder="Summarize your overall findings and observations..."
+                        className="w-full rounded-lg border border-gray-300 p-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 min-h-[120px]"
+                        value={assessorSummary.overallNotes}
+                        onChange={(e) => setAssessorSummary(prev => ({ ...prev, overallNotes: e.target.value }))}
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">Your Decision</label>
+                        <select 
+                          className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          value={assessorSummary.assessorDecision || ''}
+                          onChange={(e) => setAssessorSummary(prev => ({ 
+                            ...prev, 
+                            assessorDecision: e.target.value as AssessorSummary['assessorDecision'] 
+                          }))}
+                        >
+                          <option value="">Select decision...</option>
+                          <option value="APPROVE">Approve Claim</option>
+                          <option value="INVESTIGATE">Requires Investigation</option>
+                          <option value="REJECT">Reject Claim</option>
+                          <option value="WRITE_OFF">Write-Off Vehicle</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">Reviewer Name</label>
+                        <input
+                          type="text"
+                          placeholder="Your name"
+                          className="w-full rounded-lg border border-gray-300 p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          value={assessorSummary.reviewedBy}
+                          onChange={(e) => setAssessorSummary(prev => ({ ...prev, reviewedBy: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    {assessorSummary.assessorDecision && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">Decision Reason</label>
+                        <textarea
+                          placeholder="Explain your decision reasoning..."
+                          className="w-full rounded-lg border border-gray-300 p-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 min-h-[80px]"
+                          value={assessorSummary.assessorDecisionReason}
+                          onChange={(e) => setAssessorSummary(prev => ({ ...prev, assessorDecisionReason: e.target.value }))}
+                        />
+                      </div>
+                    )}
+
+                    {assessorSummary.assessorDecision && assessorSummary.reviewedBy && (
+                      <Button 
+                        onClick={() => setAssessorSummary(prev => ({ 
+                          ...prev, 
+                          reviewCompletedAt: new Date().toLocaleString() 
+                        }))}
+                        className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 gap-2"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Complete Review
+                      </Button>
+                    )}
+
+                    {assessorSummary.reviewCompletedAt && (
+                      <Alert className="bg-emerald-50 border-emerald-200">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <AlertTitle className="text-emerald-800">Review Completed</AlertTitle>
+                        <AlertDescription className="text-emerald-700">
+                          Reviewed by {assessorSummary.reviewedBy} at {assessorSummary.reviewCompletedAt}
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
