@@ -88,54 +88,70 @@ export async function POST(request: NextRequest) {
       })
 
       // Process based on document type
+      console.log(`[API] Processing document: ${docType}, file: ${file.name}, size: ${file.size}, type: ${mimeType}`)
+      
       if (docType === 'license_disc') {
         const result = await extractLicenseDisc(base64, mimeType)
+        console.log(`[API] License disc extraction result:`, result.success, result.error || 'OK')
         if (result.success && result.data) {
           licenseData = result.data
           processedDocs.push({
             type: 'license_disc',
             extractedData: result.data,
-            confidence: result.data.confidence.overall
+            confidence: result.data.confidence?.overall || 75
           })
           
           // Save vehicle data
-          await db.vehicle.create({
-            data: {
-              claimId: claim.id,
-              registrationNumber: result.data.registrationNumber,
-              vin: result.data.vin,
-              make: result.data.make,
-              model: result.data.model,
-              year: result.data.year,
-              regConfidence: result.data.confidence.registrationNumber,
-              vinConfidence: result.data.confidence.vin
-            }
-          })
+          try {
+            await db.vehicle.create({
+              data: {
+                claimId: claim.id,
+                registrationNumber: result.data.registrationNumber || 'UNKNOWN',
+                vin: result.data.vin || 'UNKNOWN',
+                make: result.data.make || 'Unknown',
+                model: result.data.model || 'Unknown',
+                year: result.data.year,
+                regConfidence: result.data.confidence?.registrationNumber || 50,
+                vinConfidence: result.data.confidence?.vin || 50
+              }
+            })
+          } catch (dbError) {
+            console.error('[API] Failed to save vehicle data:', dbError)
+          }
+        } else {
+          console.error('[API] License disc extraction failed:', result.error)
         }
       } else if (docType === 'claim_form') {
         const result = await extractClaimForm(base64, mimeType)
+        console.log(`[API] Claim form extraction result:`, result.success, result.error || 'OK')
         if (result.success && result.data) {
           claimFormData = result.data
           processedDocs.push({
             type: 'claim_form',
             extractedData: result.data,
-            confidence: 85 // Default confidence for forms
+            confidence: 85
           })
           
-          // Save incident data
-          await db.incident.create({
-            data: {
-              claimId: claim.id,
-              incidentDate: result.data.incidentDate ? new Date(result.data.incidentDate) : null,
-              location: result.data.location,
-              description: result.data.description,
-              driverName: result.data.driverName,
-              driverLicense: result.data.driverLicense
-            }
-          })
+          try {
+            await db.incident.create({
+              data: {
+                claimId: claim.id,
+                incidentDate: result.data.incidentDate ? new Date(result.data.incidentDate) : null,
+                location: result.data.location || 'Unknown',
+                description: result.data.description || 'No description',
+                driverName: result.data.driverName || 'Unknown',
+                driverLicense: result.data.driverLicense || ''
+              }
+            })
+          } catch (dbError) {
+            console.error('[API] Failed to save incident data:', dbError)
+          }
+        } else {
+          console.error('[API] Claim form extraction failed:', result.error)
         }
       } else if (docType === 'policy_schedule') {
         const result = await extractPolicySchedule(base64, mimeType)
+        console.log(`[API] Policy schedule extraction result:`, result.success, result.error || 'OK')
         if (result.success && result.data) {
           policyData = result.data
           processedDocs.push({
@@ -144,28 +160,34 @@ export async function POST(request: NextRequest) {
             confidence: 80
           })
           
-          // Save policy data
-          await db.policy.create({
-            data: {
-              claimId: claim.id,
-              policyNumber: result.data.policyNumber,
-              insuredName: result.data.insuredName,
-              insurerName: result.data.insurerName,
-              startDate: result.data.startDate ? new Date(result.data.startDate) : null,
-              endDate: result.data.endDate ? new Date(result.data.endDate) : null,
-              insuredVin: result.data.vehicleDetails.vin,
-              insuredRegNumber: result.data.vehicleDetails.registrationNumber,
-              insuredMake: result.data.vehicleDetails.make,
-              insuredModel: result.data.vehicleDetails.model,
-              sumInsured: result.data.sumInsured,
-              excess: result.data.excess,
-              insuredExtras: JSON.stringify(result.data.extras)
-            }
-          })
+          try {
+            await db.policy.create({
+              data: {
+                claimId: claim.id,
+                policyNumber: result.data.policyNumber || 'UNKNOWN',
+                insuredName: result.data.insuredName || 'Unknown',
+                insurerName: result.data.insurerName || 'Unknown',
+                startDate: result.data.startDate ? new Date(result.data.startDate) : null,
+                endDate: result.data.endDate ? new Date(result.data.endDate) : null,
+                insuredVin: result.data.vehicleDetails?.vin || '',
+                insuredRegNumber: result.data.vehicleDetails?.registrationNumber || '',
+                insuredMake: result.data.vehicleDetails?.make || '',
+                insuredModel: result.data.vehicleDetails?.model || '',
+                sumInsured: result.data.sumInsured || 0,
+                excess: result.data.excess || 0,
+                insuredExtras: JSON.stringify(result.data.extras || [])
+              }
+            })
+          } catch (dbError) {
+            console.error('[API] Failed to save policy data:', dbError)
+          }
+        } else {
+          console.error('[API] Policy schedule extraction failed:', result.error)
         }
       } else {
         // Damage photo
         const result = await extractDamageInfo(base64, mimeType)
+        console.log(`[API] Damage photo extraction result:`, result.success, result.error || 'OK')
         if (result.success && result.data) {
           damageAssessments.push(result.data)
           damagePhotos.push({ base64, mimeType })
@@ -175,6 +197,8 @@ export async function POST(request: NextRequest) {
             extractedData: result.data,
             confidence: 75
           })
+        } else {
+          console.error('[API] Damage photo extraction failed:', result.error)
         }
       }
     }

@@ -212,3 +212,38 @@ Unresolved Issues or Risks:
 - API needs to handle assessor observations parameter (backend integration pending)
 - PDF export still generates HTML (could integrate PDF skill)
 - Could add more visual charts/graphs for damage assessment
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Fix document processing - ensure VLM actually analyzes uploaded documents
+
+Work Log:
+- Added comprehensive console logging to API route to track document processing:
+  - Log each document being processed with file name, size, and type
+  - Log success/failure of each VLM extraction call
+  - Log specific extraction errors for debugging
+- Added null-safe access to extracted data (using `?.` and `||` operators)
+- Wrapped database operations in try/catch to prevent silent failures
+- Changed frontend error handling:
+  - Removed automatic fallback to mock data on API failure
+  - Added proper error state handling with user-friendly error display
+  - Created new error UI section with retry and start over buttons
+  - Added troubleshooting tips for common issues
+- Error state now shows:
+  - Clear error message to user
+  - Retry Analysis button
+  - Start Over button
+  - Troubleshooting checklist
+
+Stage Summary:
+- Document processing now shows actual errors instead of silently using mock data
+- VLM extraction errors are logged to console for debugging
+- Users get clear feedback when processing fails
+- Can retry processing without re-uploading documents
+
+Current Status:
+- The system now properly calls the VLM to analyze documents
+- If VLM fails, errors are shown (not hidden with mock data)
+- API logs show processing details in server console
+- Error UI provides guidance for troubleshooting

@@ -375,18 +375,11 @@ export default function Home() {
       }))
     } catch (error) {
       console.error('Processing error:', error)
-      // Fall back to mock results if API fails
-      const now = new Date()
+      // Show error instead of falling back to mock data
       setClaim(prev => ({
         ...prev,
-        status: 'completed',
-        stepProgress: 100,
-        currentStep: PIPELINE_STEPS.length,
-        results: {
-          ...getMockResults(),
-          claimNumber: `CLM-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
-          processedAt: now.toLocaleString()
-        }
+        status: 'error',
+        error: `Processing failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please check console for details.`
       }))
     }
   }
@@ -1384,6 +1377,61 @@ export default function Home() {
                       Report Generation
                     </span>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : claim.status === 'error' ? (
+          /* Error Section */
+          <div className="max-w-2xl mx-auto">
+            <Card className="border-red-300 bg-red-50">
+              <CardHeader className="bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-t-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center">
+                    <XCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Processing Error</CardTitle>
+                    <CardDescription className="text-red-100">
+                      An error occurred during claim processing
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <Alert className="border-red-200 bg-white">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                  <AlertTitle className="text-red-800">Error Details</AlertTitle>
+                  <AlertDescription className="text-red-700">
+                    {claim.error || 'An unknown error occurred'}
+                  </AlertDescription>
+                </Alert>
+                
+                <div className="mt-6 flex justify-center gap-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={resetClaim}
+                    className="gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Start Over
+                  </Button>
+                  <Button 
+                    onClick={startProcessing}
+                    className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-600"
+                  >
+                    <Zap className="w-4 h-4" />
+                    Retry Analysis
+                  </Button>
+                </div>
+                
+                <div className="mt-4 text-center text-sm text-gray-500">
+                  <p>If the problem persists, please check:</p>
+                  <ul className="mt-2 text-left max-w-md mx-auto space-y-1">
+                    <li>• Document images are clear and readable</li>
+                    <li>• File formats are supported (JPG, PNG, PDF)</li>
+                    <li>• File sizes are under 10MB</li>
+                  </ul>
                 </div>
               </CardContent>
             </Card>
