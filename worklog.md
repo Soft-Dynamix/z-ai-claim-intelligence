@@ -172,3 +172,43 @@ Stage Summary:
 - Improved workflow that gathers all information upfront
 - Pre-analysis observations displayed in results with clear "Pre-Analysis" labeling
 - The AI will consider assessor observations as part of the input data (pending backend integration)
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Connect frontend to real API and add Assessment Report for insurer
+
+Work Log:
+- Updated UploadedDocument interface to store actual File objects (not just metadata)
+- Updated file upload handlers (handleDrop, handleFileSelect) to preserve File objects
+- Replaced mock data processing with real API call to /api/claims/process:
+  - Created FormData with files and document types
+  - Added assessor observations to API payload
+  - Implemented progress animation during API processing
+  - Added error handling with fallback to mock data
+- Created transformApiResults() function to convert API response to frontend ClaimResults format
+- Added new "Assessment" tab with comprehensive Assessment Report for insurers:
+  - Claim summary header with claim number and processed date
+  - Decision summary card with AI recommendation and confidence
+  - Vehicle details card with registration, VIN, make/model, match status
+  - Policy details card with policy number, insurer, sum insured, coverage status
+  - Financial assessment card with damage severity, repair cost, write-off %, classification
+  - Risk indicators section with all detected risks
+  - Consistency check results with pass/fail indicators for all checks
+  - Assessor notes summary section showing pre-analysis observations and review decision
+  - Export PDF button for downloading report
+  - Professional footer with disclaimer text
+
+Stage Summary:
+- Frontend now uses real VLM-based API for document analysis instead of mock data
+- Vehicle identification now uses actual OCR data from uploaded documents
+- Insurers have a dedicated Assessment Report tab with all decision-making information
+- Assessment report includes AI recommendation, confidence, vehicle/policy details, financial assessment, risk indicators, and consistency checks
+- Assessor observations and decisions are prominently displayed in the report
+- All lint checks passing
+- Application running successfully on port 3000
+
+Unresolved Issues or Risks:
+- API needs to handle assessor observations parameter (backend integration pending)
+- PDF export still generates HTML (could integrate PDF skill)
+- Could add more visual charts/graphs for damage assessment

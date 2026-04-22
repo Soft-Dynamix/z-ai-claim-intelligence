@@ -26,6 +26,17 @@ export async function POST(request: NextRequest) {
     
     const files = formData.getAll('files') as File[]
     const documentTypes = formData.getAll('documentTypes') as string[]
+    const assessorObservationsStr = formData.get('assessorObservations') as string | null
+    
+    // Parse assessor observations if provided
+    let assessorObservations: any[] = []
+    if (assessorObservationsStr) {
+      try {
+        assessorObservations = JSON.parse(assessorObservationsStr)
+      } catch (e) {
+        console.warn('Failed to parse assessor observations:', e)
+      }
+    }
     
     if (files.length === 0) {
       return NextResponse.json(
@@ -333,6 +344,7 @@ export async function POST(request: NextRequest) {
       claimId: claim.id,
       claimNumber,
       processedDocuments: processedDocs.length,
+      assessorObservations: assessorObservations,
       results: {
         vehicleIdentification: licenseData,
         policyMatch: policyMatchResult,

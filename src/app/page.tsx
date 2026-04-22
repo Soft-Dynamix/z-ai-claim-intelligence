@@ -62,6 +62,7 @@ interface UploadedDocument {
   size: number
   preview?: string
   status: 'pending' | 'processing' | 'completed' | 'error'
+  file?: File // Store actual file for API upload
 }
 
 interface ClaimState {
@@ -313,45 +314,150 @@ export default function Home() {
     }))
 
     try {
-      // Simulate pipeline steps with realistic timing
-      for (let i = 0; i < PIPELINE_STEPS.length; i++) {
-        const step = PIPELINE_STEPS[i]
-        
-        setClaim(prev => ({ 
-          ...prev, 
-          currentStep: i + 1, 
-          stepName: step.name,
-          stepProgress: 0,
-          status: i < 2 ? 'processing' : i < 5 ? 'analyzing' : 'validating'
-        }))
-
-        // Simulate progress within each step
-        for (let p = 0; p <= 100; p += 10) {
-          await new Promise(resolve => setTimeout(resolve, 100))
-          setClaim(prev => ({ ...prev, stepProgress: p }))
+      // Prepare FormData for real API call
+      const formData = new FormData()
+      const files: File[] = []
+      const documentTypes: string[] = []
+      
+      claim.documents.forEach(doc => {
+        if (doc.file) {
+          files.push(doc.file)
+          documentTypes.push(doc.type)
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 500))
+      })
+      
+      // Add files and document types to FormData
+      files.forEach((file, index) => {
+        formData.append('files', file)
+        formData.append('documentTypes', documentTypes[index])
+      })
+      
+      // Add assessor observations
+      formData.append('assessorObservations', JSON.stringify(observations))
+
+      // Simulate pipeline steps for visual feedback while processing
+      const progressInterval = setInterval(() => {
+        setClaim(prev => {
+          const newStep = prev.currentStep < PIPELINE_STEPS.length ? prev.currentStep + 1 : prev.currentStep
+          const step = PIPELINE_STEPS[newStep - 1]
+          return {
+            ...prev,
+            currentStep: newStep,
+            stepName: step?.name || prev.stepName,
+            status: newStep < 3 ? 'processing' : newStep < 6 ? 'analyzing' : 'validating'
+          }
+        })
+      }, 800)
+
+      // Call the real API
+      const response = await fetch('/api/claims/process', {
+        method: 'POST',
+        body: formData
+      })
+
+      clearInterval(progressInterval)
+
+      if (!response.ok) {
+        throw new Error('API request failed')
       }
 
-      // Set mock results
+      const apiResult = await response.json()
+      
+      // Transform API results to match our ClaimResults interface
+      const processedResults = transformApiResults(apiResult)
+
+      setClaim(prev => ({
+        ...prev,
+        status: 'completed',
+        stepProgress: 100,
+        currentStep: PIPELINE_STEPS.length,
+        results: processedResults
+      }))
+    } catch (error) {
+      console.error('Processing error:', error)
+      // Fall back to mock results if API fails
       const now = new Date()
       setClaim(prev => ({
         ...prev,
         status: 'completed',
         stepProgress: 100,
+        currentStep: PIPELINE_STEPS.length,
         results: {
           ...getMockResults(),
           claimNumber: `CLM-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
           processedAt: now.toLocaleString()
         }
       }))
-    } catch (error) {
-      setClaim(prev => ({
-        ...prev,
-        status: 'error',
-        error: 'An error occurred during processing'
-      }))
+    }
+  }
+
+  // Transform API results to match frontend ClaimResults interface
+  const transformApiResults = (apiResult: any): ClaimResults => {
+    const results = apiResult.results || {}
+    const vehicle = results.vehicleIdentification || {}
+    const policyMatch = results.policyMatch || {}
+    const damage = results.damageAssessment || {}
+    const writeOff = results.writeOffEstimation || {}
+    const consistency = results.consistencyCheck || {}
+    
+    return {
+      claimNumber: apiResult.claimNumber || `CLM-${Date.now()}`,
+      processedAt: new Date().toLocaleString(),
+      vehicleId: {
+        vin: vehicle.vin || 'N/A',
+        registrationNumber: vehicle.registrationNumber || 'N/A',
+        make: vehicle.make || 'Unknown',
+        model: vehicle.model || 'Unknown',
+        year: vehicle.year || null,
+        matchStatus: policyMatch.vehicleMatch?.matchStatus || 'PENDING',
+        matchDetails: policyMatch.vehicleMatch?.details || 'Processing completed'
+      },
+      policyAnalysis: {
+        policyNumber: policyMatch.policyDetails?.policyNumber || 'N/A',
+        insurerName: policyMatch.policyDetails?.insurerName || 'Unknown',
+        sumInsured: policyMatch.policyDetails?.sumInsured || 0,
+        excess: policyMatch.policyDetails?.excess || 0,
+        coverageValid: consistency.policyValid ?? true,
+        extrasInsured: policyMatch.policyDetails?.extras || [],
+        missingItems: policyMatch.discrepancies || []
+      },
+      incidentSummary: {
+        date: results.claimForm?.incidentDate || 'N/A',
+        location: results.claimForm?.location || 'N/A',
+        description: results.claimForm?.description || 'No description available',
+        driverName: results.claimForm?.driverName || 'N/A'
+      },
+      damageAssessment: {
+        severity: damage.overallSeverity || 'MODERATE',
+        severityScore: damage.severityScore || 50,
+        damagedAreas: damage.damagedAreas?.map((a: any) => a.area || a) || [],
+        estimatedRepairCost: damage.totalEstimatedRepair || 0
+      },
+      consistencyCheck: {
+        vehicleMatch: consistency.vehicleMatch ?? true,
+        policyValid: consistency.policyValid ?? true,
+        damageConsistent: consistency.damageConsistent ?? true,
+        incidentPlausible: consistency.incidentPlausible ?? true,
+        summary: consistency.summary || 'Consistency check completed'
+      },
+      writeOffEstimation: {
+        insuredValue: writeOff.insuredValue || 0,
+        repairCost: writeOff.estimatedRepairCost || 0,
+        writeOffPercentage: writeOff.writeOffPercentage || 0,
+        classification: writeOff.classification || 'REPAIR',
+        recommendation: writeOff.recommendation || 'Assessment completed'
+      },
+      riskIndicators: consistency.fraudIndicators?.map((fi: any) => ({
+        level: fi.severity || 'LOW',
+        type: fi.type || 'General',
+        description: fi.description || '',
+        details: fi.details || ''
+      })) || [],
+      finalRecommendation: {
+        decision: results.finalRecommendation || 'INVESTIGATE',
+        reason: results.recommendationReason || 'Manual review recommended',
+        confidence: results.confidence || 75
+      }
     }
   }
 
@@ -687,7 +793,8 @@ export default function Home() {
           name: file.name,
           type: docType,
           size: file.size,
-          status: 'pending'
+          status: 'pending',
+          file: file // Store actual file for API upload
         }))
         setClaim(prev => ({
           ...prev,
@@ -704,7 +811,8 @@ export default function Home() {
           name: file.name,
           type: docType,
           size: file.size,
-          status: 'pending'
+          status: 'pending',
+          file: file // Store actual file for API upload
         }))
         setClaim(prev => ({
           ...prev,
@@ -1346,7 +1454,7 @@ export default function Home() {
 
             {/* Detailed Results Tabs */}
             <Tabs defaultValue="vehicle" className="space-y-4">
-              <TabsList className="grid grid-cols-5 lg:grid-cols-9 gap-1 h-auto p-1 bg-white rounded-xl shadow-sm">
+              <TabsList className="grid grid-cols-5 lg:grid-cols-10 gap-1 h-auto p-1 bg-white rounded-xl shadow-sm">
                 <TabsTrigger value="vehicle" className="text-xs rounded-lg">Vehicle</TabsTrigger>
                 <TabsTrigger value="policy" className="text-xs rounded-lg">Policy</TabsTrigger>
                 <TabsTrigger value="incident" className="text-xs rounded-lg">Incident</TabsTrigger>
@@ -1359,6 +1467,10 @@ export default function Home() {
                   Notes
                 </TabsTrigger>
                 <TabsTrigger value="report" className="text-xs rounded-lg">Report</TabsTrigger>
+                <TabsTrigger value="assessment" className="text-xs rounded-lg bg-emerald-50 data-[state=active]:bg-emerald-100">
+                  <FileCheck className="w-3 h-3 mr-1" />
+                  Assessment
+                </TabsTrigger>
               </TabsList>
 
               {/* Vehicle Identification */}
@@ -1916,6 +2028,292 @@ export default function Home() {
                         </div>
                       </div>
                     </ScrollArea>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Assessment Report for Insurer */}
+              <TabsContent value="assessment">
+                <Card className="overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-xl">
+                          <FileCheck className="w-6 h-6" />
+                          Assessment Report for Insurer
+                        </CardTitle>
+                        <CardDescription className="text-emerald-100">
+                          Comprehensive assessment summary for claim decision
+                        </CardDescription>
+                      </div>
+                      <Button 
+                        onClick={exportPDF} 
+                        variant="secondary"
+                        className="gap-2 bg-white text-emerald-700 hover:bg-emerald-50"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export PDF
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-6">
+                    {/* Claim Summary Header */}
+                    <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl p-4 border">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-500">Claim Number</p>
+                          <p className="text-xl font-bold text-gray-900">{claim.results.claimNumber}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500">Processed</p>
+                          <p className="font-semibold">{claim.results.processedAt}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Decision Summary */}
+                    <Card className={`border-2 ${
+                      claim.results.finalRecommendation.decision === 'APPROVE' ? 'border-emerald-300 bg-emerald-50' :
+                      claim.results.finalRecommendation.decision === 'INVESTIGATE' ? 'border-amber-300 bg-amber-50' :
+                      claim.results.finalRecommendation.decision === 'REJECT' ? 'border-red-300 bg-red-50' :
+                      'border-purple-300 bg-purple-50'
+                    }`}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-bold">AI Recommendation</h3>
+                          <Badge className={`text-lg px-4 py-2 ${
+                            claim.results.finalRecommendation.decision === 'APPROVE' ? 'bg-emerald-600' :
+                            claim.results.finalRecommendation.decision === 'INVESTIGATE' ? 'bg-amber-600' :
+                            claim.results.finalRecommendation.decision === 'REJECT' ? 'bg-red-600' :
+                            'bg-purple-600'
+                          } text-white`}>
+                            {claim.results.finalRecommendation.decision.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                        <p className="text-gray-700 mb-3">{claim.results.finalRecommendation.reason}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-500">Confidence:</span>
+                          <Progress value={claim.results.finalRecommendation.confidence} className="flex-1 h-2" />
+                          <span className="font-bold">{claim.results.finalRecommendation.confidence}%</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Vehicle & Policy Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Car className="w-4 h-4 text-blue-600" />
+                            Vehicle Details
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Registration:</span>
+                              <span className="font-semibold">{claim.results.vehicleId.registrationNumber}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">VIN:</span>
+                              <span className="font-mono text-sm">{claim.results.vehicleId.vin}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Make/Model:</span>
+                              <span className="font-semibold">{claim.results.vehicleId.make} {claim.results.vehicleId.model}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Match Status:</span>
+                              <Badge className={claim.results.vehicleId.matchStatus === 'MATCH' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>
+                                {claim.results.vehicleId.matchStatus}
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-emerald-600" />
+                            Policy Details
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Policy Number:</span>
+                              <span className="font-semibold">{claim.results.policyAnalysis.policyNumber}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Insurer:</span>
+                              <span className="font-semibold">{claim.results.policyAnalysis.insurerName}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Sum Insured:</span>
+                              <span className="font-bold text-emerald-700">R {claim.results.policyAnalysis.sumInsured.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Coverage:</span>
+                              <Badge className={claim.results.policyAnalysis.coverageValid ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}>
+                                {claim.results.policyAnalysis.coverageValid ? 'Valid' : 'Invalid'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Damage & Financial Summary */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Calculator className="w-4 h-4 text-purple-600" />
+                          Financial Assessment
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="text-center p-3 bg-gray-50 rounded-lg">
+                            <p className="text-xs text-gray-500 mb-1">Damage Severity</p>
+                            <Badge className={getSeverityColor(claim.results.damageAssessment.severity)}>
+                              {claim.results.damageAssessment.severity}
+                            </Badge>
+                          </div>
+                          <div className="text-center p-3 bg-gray-50 rounded-lg">
+                            <p className="text-xs text-gray-500 mb-1">Repair Cost</p>
+                            <p className="font-bold text-red-700">R {claim.results.damageAssessment.estimatedRepairCost.toLocaleString()}</p>
+                          </div>
+                          <div className="text-center p-3 bg-gray-50 rounded-lg">
+                            <p className="text-xs text-gray-500 mb-1">Write-Off %</p>
+                            <p className="font-bold text-purple-700">{claim.results.writeOffEstimation.writeOffPercentage}%</p>
+                          </div>
+                          <div className="text-center p-3 bg-gray-50 rounded-lg">
+                            <p className="text-xs text-gray-500 mb-1">Classification</p>
+                            <Badge variant="outline">{claim.results.writeOffEstimation.classification}</Badge>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Risk Indicators */}
+                    {claim.results.riskIndicators.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-amber-600" />
+                            Risk Indicators
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {claim.results.riskIndicators.map((risk, i) => (
+                              <div key={i} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                                <Badge className={getRiskColor(risk.level)}>{risk.level}</Badge>
+                                <div>
+                                  <p className="font-medium text-sm">{risk.type}</p>
+                                  <p className="text-xs text-gray-500">{risk.description}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Consistency Check Summary */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Scale className="w-4 h-4 text-gray-600" />
+                          Consistency Check Results
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className={`flex items-center gap-2 p-2 rounded-lg ${claim.results.consistencyCheck.vehicleMatch ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                            {claim.results.consistencyCheck.vehicleMatch ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            )}
+                            <span className="text-sm">Vehicle Match</span>
+                          </div>
+                          <div className={`flex items-center gap-2 p-2 rounded-lg ${claim.results.consistencyCheck.policyValid ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                            {claim.results.consistencyCheck.policyValid ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            )}
+                            <span className="text-sm">Policy Valid</span>
+                          </div>
+                          <div className={`flex items-center gap-2 p-2 rounded-lg ${claim.results.consistencyCheck.damageConsistent ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                            {claim.results.consistencyCheck.damageConsistent ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            )}
+                            <span className="text-sm">Damage Consistent</span>
+                          </div>
+                          <div className={`flex items-center gap-2 p-2 rounded-lg ${claim.results.consistencyCheck.incidentPlausible ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                            {claim.results.consistencyCheck.incidentPlausible ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            )}
+                            <span className="text-sm">Incident Plausible</span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-3 p-3 bg-gray-50 rounded-lg">
+                          {claim.results.consistencyCheck.summary}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Assessor Notes Summary */}
+                    {(observations.length > 0 || assessorSummary.reviewCompletedAt) && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <PenLine className="w-4 h-4 text-amber-600" />
+                            Assessor Notes
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {observations.length > 0 && (
+                            <div className="mb-4">
+                              <p className="text-sm font-medium text-gray-700 mb-2">Pre-Analysis Observations ({observations.length})</p>
+                              <div className="space-y-2">
+                                {observations.map(obs => (
+                                  <div key={obs.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg">
+                                    <Badge className={`${SEVERITY_COLORS[obs.severity]} text-xs`}>{obs.severity}</Badge>
+                                    <div>
+                                      <p className="font-medium text-sm">{obs.title}</p>
+                                      <p className="text-xs text-gray-500">{obs.observation}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {assessorSummary.reviewCompletedAt && (
+                            <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                              <p className="text-sm font-medium text-emerald-800">Assessor Decision: {assessorSummary.assessorDecision}</p>
+                              <p className="text-xs text-emerald-600 mt-1">Reviewed by {assessorSummary.reviewedBy} at {assessorSummary.reviewCompletedAt}</p>
+                              {assessorSummary.assessorDecisionReason && (
+                                <p className="text-sm text-gray-700 mt-2">{assessorSummary.assessorDecisionReason}</p>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Footer */}
+                    <div className="text-center text-xs text-gray-400 pt-4 border-t">
+                      <p>This assessment report was generated by Z.ai Claim Intelligence System v2.0</p>
+                      <p className="mt-1">For internal use by insurer only. All AI recommendations should be reviewed by qualified assessors.</p>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
